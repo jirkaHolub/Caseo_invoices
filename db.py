@@ -48,6 +48,12 @@ def get_conn():
             url += ("&" if "?" in url else "?") + "sslmode=require"
         # prepare_threshold=None kvůli kompatibilitě s pgbouncer (Supabase pooler).
         return psycopg.connect(url, prepare_threshold=None, row_factory=dict_row)
+    # Na serverless (Vercel/Lambda) je disk read-only → SQLite nelze použít.
+    if os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
+        raise RuntimeError(
+            "Chybí DATABASE_URL (ani POSTGRES_URL) – serverless běh nemůže použít "
+            "SQLite. Nastav DATABASE_URL v Environment Variables na Vercelu (pro "
+            "Production) a spusť nový Deploy.")
     conn = sqlite3.connect(DB_PATH, timeout=30)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
