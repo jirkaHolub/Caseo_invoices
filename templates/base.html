@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="cs" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Caseo · Facturas{% endblock %}</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="appbar">
+    <div class="appbar-inner">
+      <a class="brand" href="/facturas">Caseo · <span>Facturas</span></a>
+      <nav>
+        <a href="/facturas" class="{{ 'is-active' if active == 'registry' else '' }}">Registr</a>
+        <a href="/facturas/nueva" class="{{ 'is-active' if active == 'new' else '' }}">Nová faktura</a>
+        <a href="/propietarios" class="{{ 'is-active' if active == 'owners' else '' }}">Majitelé</a>
+        <a href="/ajustes" class="{{ 'is-active' if active == 'settings' else '' }}">Nastavení</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    {% if msg %}<div class="flash flash-ok">{{ msg }}</div>{% endif %}
+    {% if err %}<div class="flash flash-err">{{ err }}</div>{% endif %}
+    {% block body %}{% endblock %}
+  </main>
+
+  <footer class="container foot">
+    <small>Samofakturace (facturación por el destinatario) · localhost</small>
+  </footer>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

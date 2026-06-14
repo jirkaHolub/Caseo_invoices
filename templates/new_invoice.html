@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+{% block title %}Nová faktura · Caseo{% endblock %}
+{% block body %}
+<h2>Nová faktura</h2>
+
+{% if not owners %}
+  <article class="warn">Nejdřív přidejte alespoň jednoho <a href="/propietarios">majitele</a>.</article>
+{% elif not settings_ok %}
+  <article class="warn">Vyplňte fiskální údaje Caseo v <a href="/ajustes">Nastavení</a> – bez nich nelze fakturu vystavit.</article>
+{% endif %}
+
+<div class="grid-2">
+  <section>
+    <form method="post" action="/facturas" id="inv-form">
+      <input type="hidden" name="confirmar" id="confirmar" value="{{ '1' if warn_duplicate else '0' }}">
+
+      <label>Majitel (emisor)
+        <select name="owner_kod" id="owner_kod" required>
+          <option value="" disabled {{ 'selected' if not owner_selected else '' }}>— vyberte —</option>
+          {% for o in owners %}
+          <option value="{{ o.kod }}" {{ 'selected' if o.kod == owner_selected else '' }}>
+            {{ o.kod }} · {{ o.nombre }}{{ ' · ' + o.nombre_propiedad if o.nombre_propiedad else '' }}
+          </option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <div class="grid">
+        <label>Měsíc nájmu
+          <input type="month" name="mes" id="mes" value="{{ mes_default }}" required
+                 pattern="\d{4}-\d{2}">
+        </label>
+        <label>Částka brutto (vč. 21 % IVA) €
+          <input type="text" name="total" id="total" inputmode="decimal" required
+                 placeholder="napr. 850,00" value="{{ prev_total or '' }}">
+        </label>
+      </div>
+
+      <label>Concepto <small class="muted">(volitelně – přepíše výchozí text)</small>
+        <textarea name="concepto" id="concepto" rows="2"
+                  placeholder="Ponecháte-li prázdné, doplní se automaticky.">{{ prev_concepto or '' }}</textarea>
+      </label>
+
+      <details>
+        <summary>Upravit datumy (volitelné)</summary>
+        <div class="grid">
+          <label>Fecha de expedición
+            <input type="date" name="fecha_expedicion" id="fecha_expedicion">
+          </label>
+          <label>Fecha de vencimiento
+            <input type="date" name="fecha_vencimiento" id="fecha_vencimiento">
+          </label>
+        </div>
+        <small class="muted">Prázdné = automaticky (poslední den měsíce / 15. následujícího).</small>
+      </details>
+
+      <div id="dup-warn" class="warn" style="{{ '' if warn_duplicate else 'display:none' }}">
+        Pro tohoto majitele a měsíc už faktura existuje
+        (<span id="dup-num">{{ warn_duplicate }}</span>). Vygenerování potvrďte.
+      </div>
+
+      <button type="submit" id="submit-btn"
+              {{ 'disabled' if (not owners or not settings_ok) else '' }}>
+        Vygenerovat fakturu
+      </button>
+    </form>
+  </section>
+
+  <section>
+    <article class="preview" id="preview">
+      <div class="preview-head">
+        <span class="preview-tag">Náhled</span>
+        <strong id="pv-numero">—</strong>
+      </div>
+      <p class="muted" id="pv-status">Vyplňte majitele, měsíc a částku.</p>
+      <table class="pv-table" id="pv-body" style="display:none">
+        <tr><td>Období plnění</td><td id="pv-periodo">—</td></tr>
+        <tr><td>Datum vystavení</td><td id="pv-exp">—</td></tr>
+        <tr><td>Datum splatnosti</td><td id="pv-ven">—</td></tr>
+        <tr id="pv-vs-row" style="display:none"><td>Variabilní symbol</td><td id="pv-vs">—</td></tr>
+        <tr class="pv-sep"><td>Základ daně</td><td id="pv-base">—</td></tr>
+        <tr><td>DPH (21 %)</td><td id="pv-cuota">—</td></tr>
+        <tr class="pv-total"><td>Celkem</td><td id="pv-total">—</td></tr>
+        <tr class="pv-concepto"><td colspan="2"><small class="muted" id="pv-concepto">—</small></td></tr>
+      </table>
+      <small class="muted">Číslo je předběžné; skutečné se přidělí až při vygenerování.</small>
+    </article>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const $ = (id) => document.getElementById(id);
+let timer = null;
+let datesTouched = false;
+["fecha_expedicion", "fecha_vencimiento"].forEach(id =>
+  $(id).addEventListener("input", () => { datesTouched = true; }));
+
+function schedulePreview() { clearTimeout(timer); timer = setTimeout(loadPreview, 250); }
+["owner_kod", "mes", "total", "concepto"].forEach(id =>
+  $(id).addEventListener("input", schedulePreview));
+
+async function loadPreview() {
+  const owner = $("owner_kod").value, mes = $("mes").value, total = $("total").value;
+  if (!owner || !mes || !total) { return; }
+  const data = new URLSearchParams({ owner_kod: owner, mes, total, concepto: $("concepto").value });
+  let res;
+  try { res = await (await fetch("/api/preview", { method: "POST", body: data })).json(); }
+  catch (e) { return; }
+
+  if (!res.ok) {
+    $("pv-status").textContent = res.error;
+    $("pv-status").style.display = "block";
+    $("pv-body").style.display = "none";
+    return;
+  }
+  $("pv-status").style.display = "none";
+  $("pv-body").style.display = "";
+  $("pv-numero").textContent = res.numero;
+  $("pv-periodo").textContent = res.periodo;
+  $("pv-exp").textContent = res.fecha_expedicion_es;
+  $("pv-ven").textContent = res.fecha_vencimiento_es;
+  $("pv-base").textContent = res.base;
+  $("pv-cuota").textContent = res.cuota;
+  $("pv-total").textContent = res.total;
+  $("pv-concepto").textContent = res.concepto;
+  if (res.variabilni_symbol) {
+    $("pv-vs").textContent = res.variabilni_symbol;
+    $("pv-vs-row").style.display = "";
+  } else {
+    $("pv-vs-row").style.display = "none";
+  }
+
+  // Předvyplň datumy (jen pokud je uživatel ručně neměnil).
+  if (!datesTouched) {
+    $("fecha_expedicion").value = res.fecha_expedicion;
+    $("fecha_vencimiento").value = res.fecha_vencimiento;
+  }
+
+  // Varování o duplicitě.
+  if (res.duplicate) {
+    $("dup-num").textContent = res.duplicate;
+    $("dup-warn").style.display = "block";
+  } else {
+    $("dup-warn").style.display = "none";
+    $("confirmar").value = "0";
+  }
+}
+
+// Při odeslání s duplicitou vyžádej potvrzení.
+$("inv-form").addEventListener("submit", (e) => {
+  if ($("dup-warn").style.display !== "none" && $("confirmar").value !== "1") {
+    const num = $("dup-num").textContent;
+    if (confirm("Pro tohoto majitele a měsíc už existuje faktura " + num +
+                ".\nOpravdu vystavit další?")) {
+      $("confirmar").value = "1";
+    } else {
+      e.preventDefault();
+    }
+  }
+});
+
+window.addEventListener("DOMContentLoaded", loadPreview);
+</script>
+{% endblock %}

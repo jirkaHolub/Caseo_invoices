@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Majitelé · Caseo{% endblock %}
+{% block body %}
+<div class="grid-2">
+  <section>
+    <h2>Majitelé nemovitostí</h2>
+    {% if owners %}
+    <table>
+      <thead>
+        <tr><th>Kód</th><th>Nombre / razón social</th><th>NIF</th><th>Nemovitost</th><th>VS</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for o in owners %}
+        <tr>
+          <td><strong>{{ o.kod }}</strong></td>
+          <td>{{ o.nombre }}<br><small class="muted">{{ o.domicilio }}</small></td>
+          <td>{{ o.nif }}</td>
+          <td>{{ o.nombre_propiedad or "—" }}</td>
+          <td>{{ o.variabilni_symbol or "—" }}</td>
+          <td class="row-actions">
+            <a href="/propietarios?edit={{ o.kod }}" role="button" class="outline small">Upravit</a>
+            <form method="post" action="/propietarios/{{ o.kod }}/eliminar"
+                  onsubmit="return confirm('Smazat majitele {{ o.kod }}?');">
+              <button type="submit" class="outline small danger">Smazat</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="muted">Zatím žádní majitelé. Přidejte prvního formulářem vpravo.</p>
+    {% endif %}
+  </section>
+
+  <section>
+    <article>
+      <h3>{{ "Upravit majitele " + edit_owner.kod if edit_owner else "Přidat majitele" }}</h3>
+      <form method="post"
+            action="{{ '/propietarios/' + edit_owner.kod + '/actualizar' if edit_owner else '/propietarios' }}">
+        <label>Kód <small class="muted">(prefix čísla faktury, např. SE)</small>
+          <input name="kod" value="{{ edit_owner.kod if edit_owner else '' }}"
+                 {{ 'readonly' if edit_owner else 'required' }} maxlength="10"
+                 placeholder="SE" style="text-transform:uppercase">
+        </label>
+        <label>Nombre / razón social
+          <input name="nombre" value="{{ edit_owner.nombre if edit_owner else '' }}" required>
+        </label>
+        <div class="grid">
+          <label>NIF
+            <input name="nif" value="{{ edit_owner.nif if edit_owner else '' }}" required>
+          </label>
+          <label>E-mail <small class="muted">(volitelně)</small>
+            <input name="email" type="email" value="{{ edit_owner.email or '' if edit_owner else '' }}">
+          </label>
+        </div>
+        <label>Domicilio fiscal
+          <textarea name="domicilio" rows="2" required>{{ edit_owner.domicilio if edit_owner else '' }}</textarea>
+        </label>
+        <div class="grid">
+          <label>Nombre de la propiedad <small class="muted">(volitelně, do popisu)</small>
+            <input name="nombre_propiedad" value="{{ edit_owner.nombre_propiedad or '' if edit_owner else '' }}">
+          </label>
+          <label>Variabilní symbol <small class="muted">(volitelně, vždy ve faktuře)</small>
+            <input name="variabilni_symbol" value="{{ edit_owner.variabilni_symbol or '' if edit_owner else '' }}"
+                   inputmode="numeric" placeholder="napr. 20260001">
+          </label>
+        </div>
+        <div class="form-actions">
+          <button type="submit">{{ "Uložit změny" if edit_owner else "Přidat majitele" }}</button>
+          {% if edit_owner %}<a href="/propietarios" role="button" class="secondary outline">Zrušit</a>{% endif %}
+        </div>
+      </form>
+    </article>
+  </section>
+</div>
+{% endblock %}

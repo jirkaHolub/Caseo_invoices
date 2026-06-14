@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Nastavení · Caseo{% endblock %}
+{% block body %}
+<h2>Nastavení – fiskální blok Caseo (destinatario)</h2>
+<p class="muted">Tyto údaje se objeví na každé faktuře jako odběratel (cliente).</p>
+
+{% if not complete %}
+<article class="warn">Údaje nejsou kompletní. Dokud nevyplníte razón, NIF a domicilio, nelze vystavit fakturu.</article>
+{% endif %}
+
+<article style="max-width:620px">
+  <form method="post" action="/ajustes">
+    <label>Razón social
+      <input name="razon" value="{{ s.razon }}" required>
+    </label>
+    <label>NIF / CIF
+      <input name="nif" value="{{ s.nif }}" required>
+    </label>
+    <label>Domicilio fiscal
+      <textarea name="domicilio" rows="2" required>{{ s.domicilio }}</textarea>
+    </label>
+    <button type="submit">Uložit nastavení</button>
+  </form>
+</article>
+{% endblock %}

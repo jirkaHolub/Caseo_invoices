@@ -1,0 +1,77 @@
+:root {
+  --caseo: #1371B5;
+  --caseo-dark: #0f5a91;
+  --pico-primary: #1371B5;
+  --pico-primary-hover: #0f5a91;
+  --pico-primary-focus: rgba(19, 113, 181, .25);
+  --pico-form-element-active-border-color: #1371B5;
+}
+
+body { background: #f6f8fa; }
+
+/* ---- app bar ---- */
+.appbar { background: var(--caseo); color: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.12); }
+.appbar-inner { max-width: 1100px; margin: 0 auto; padding: .6rem 1rem;
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.brand { color: #fff; font-weight: 700; font-size: 1.15rem; text-decoration: none; }
+.brand span { font-weight: 400; opacity: .9; }
+.appbar nav { display: flex; gap: .25rem; flex-wrap: wrap; }
+.appbar nav a { color: #fff; text-decoration: none; padding: .35rem .7rem; border-radius: 6px;
+  font-size: .95rem; opacity: .85; }
+.appbar nav a:hover { background: rgba(255,255,255,.15); opacity: 1; }
+.appbar nav a.is-active { background: rgba(255,255,255,.22); opacity: 1; font-weight: 600; }
+
+.container { max-width: 1100px; }
+main.container { padding-top: 1.4rem; }
+.foot { opacity: .6; padding-bottom: 2rem; }
+
+/* ---- layout helpers ---- */
+.grid-2 { display: grid; grid-template-columns: 1.4fr 1fr; gap: 1.4rem; align-items: start; }
+@media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }
+.head-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.row-actions { display: flex; gap: .4rem; align-items: center; }
+.row-actions form { margin: 0; }
+.form-actions { display: flex; gap: .5rem; align-items: center; }
+.muted { color: #6b7785; }
+.r { text-align: right; }
+
+/* ---- flash / warnings ---- */
+.flash { padding: .7rem 1rem; border-radius: 8px; margin-bottom: 1rem; font-size: .95rem; }
+.flash-ok { background: #e6f4ea; color: #1e6b34; border: 1px solid #b7e0c2; }
+.flash-err { background: #fdecea; color: #a32018; border: 1px solid #f5c2bd; }
+.warn { background: #fff7e6; border: 1px solid #ffd591; color: #7a5200; padding: .7rem 1rem;
+  border-radius: 8px; margin: .6rem 0; }
+
+/* ---- buttons ---- */
+button.small, [role="button"].small { padding: .25rem .6rem; font-size: .8rem; }
+.danger { --pico-color: #b3261e; border-color: #e0a8a4; color: #b3261e; }
+
+/* ---- tables ---- */
+table th.r, table td.r { text-align: right; }
+.filters { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; margin: 1rem 0; }
+.filters select { width: auto; margin: 0; }
+
+/* ---- live preview ---- */
+.preview { position: sticky; top: 1rem; border-top: 3px solid var(--caseo); }
+.preview-head { display: flex; align-items: center; justify-content: space-between; }
+.preview-tag { font-size: .7rem; text-transform: uppercase; letter-spacing: .5px;
+  color: var(--caseo); font-weight: 700; }
+.pv-table { width: 100%; margin: .6rem 0; }
+.pv-table td { padding: .3rem 0; border: none; }
+.pv-table td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+.pv-table tr.pv-sep td { border-top: 1px solid #e1e6ea; padding-top: .5rem; }
+.pv-table tr.pv-total td { font-weight: 700; font-size: 1.15rem; color: var(--caseo);
+  border-top: 2px solid var(--caseo); padding-top: .5rem; }
+.pv-table tr.pv-concepto td { padding-top: .6rem; }
+
+/* ---- paper (detail) ---- */
+.paper { background: #fff; padding: 2.2rem; box-shadow: 0 1px 8px rgba(0,0,0,.08); }
+
+/* ---- tisk: vytiskni jen fakturu, bez chrome aplikace ---- */
+@media print {
+  body { background: #fff; }
+  .appbar, .foot, .flash, .head-row, footer { display: none !important; }
+  main.container { padding: 0; max-width: none; }
+  .paper { padding: 0; box-shadow: none; }
+  .factura { page-break-inside: avoid; }
+}

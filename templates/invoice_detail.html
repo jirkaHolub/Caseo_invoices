@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Factura {{ inv.numero }} · Caseo{% endblock %}
+{% block body %}
+<div class="head-row">
+  <h2>Faktura {{ inv.numero }}</h2>
+  <div class="row-actions">
+    <a href="/facturas/{{ inv.numero }}/pdf" role="button" target="_blank">Stáhnout PDF</a>
+    <a href="/facturas" role="button" class="outline secondary">Zpět do registru</a>
+  </div>
+</div>
+
+<article class="paper">
+  {% set embed = True %}
+  {% include "invoice_pdf.html" with context %}
+</article>
+{% endblock %}

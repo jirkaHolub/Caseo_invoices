@@ -1,0 +1,12 @@
+fastapi
+uvicorn[standard]
+jinja2
+python-multipart
+reportlab
+psycopg[binary]
+
+# WeasyPrint je volitelný, preferovaný engine pro PDF (renderuje z HTML šablony).
+# Vyžaduje systémové knihovny (pango, cairo) – na Vercelu NENÍ k dispozici, takže
+# se tam automaticky použije reportlab (s přibaleným fontem fonts/DejaVuSans.ttf).
+#   macOS lokálně:  brew install pango  &&  pip install weasyprint
+# weasyprint

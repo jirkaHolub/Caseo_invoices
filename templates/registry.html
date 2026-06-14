@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Registr faktur · Caseo{% endblock %}
+{% block body %}
+<div class="head-row">
+  <h2>Registr vystavených faktur</h2>
+  <a href="/facturas/nueva" role="button">+ Nová faktura</a>
+</div>
+
+<form method="get" action="/facturas" class="filters">
+  <select name="owner" onchange="this.form.submit()">
+    <option value="">Všichni majitelé</option>
+    {% for o in owners %}
+    <option value="{{ o.kod }}" {{ 'selected' if o.kod == f_owner else '' }}>{{ o.kod }} · {{ o.nombre }}</option>
+    {% endfor %}
+  </select>
+  <select name="anio" onchange="this.form.submit()">
+    <option value="">Všechny roky</option>
+    {% for y in years %}
+    <option value="{{ y }}" {{ 'selected' if y == f_anio else '' }}>{{ y }}</option>
+    {% endfor %}
+  </select>
+  <a href="/export.csv?owner={{ f_owner }}&anio={{ f_anio }}" role="button" class="outline">Export CSV</a>
+</form>
+
+{% if invoices %}
+<table>
+  <thead>
+    <tr><th>Número</th><th>Majitel</th><th>Měsíc</th><th class="r">Base</th>
+        <th class="r">IVA</th><th class="r">Total</th><th>Vencimiento</th><th>PDF</th></tr>
+  </thead>
+  <tbody>
+    {% for i in invoices %}
+    <tr>
+      <td><a href="/facturas/{{ i.numero }}"><strong>{{ i.numero }}</strong></a></td>
+      <td>{{ i.owner_nombre }} <small class="muted">({{ i.owner_kod }})</small></td>
+      <td>{{ i.mes_najmu }}</td>
+      <td class="r">{{ i.base_imponible | eur }}</td>
+      <td class="r">{{ i.cuota_iva | eur }}</td>
+      <td class="r"><strong>{{ i.total | eur }}</strong></td>
+      <td>{{ i.fecha_vencimiento | fecha }}</td>
+      <td><a href="/facturas/{{ i.numero }}/pdf" target="_blank">PDF ↗</a></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+  <tfoot>
+    <tr><td colspan="5" class="r"><strong>Σ Total ({{ invoices|length }})</strong></td>
+        <td class="r"><strong>{{ total_sum | eur }}</strong></td><td colspan="2"></td></tr>
+  </tfoot>
+</table>
+{% else %}
+<p class="muted">Žádné faktury neodpovídají filtru.</p>
+{% endif %}
+{% endblock %}

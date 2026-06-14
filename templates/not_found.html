@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}Nenalezeno · Caseo{% endblock %}
+{% block body %}
+<h2>Faktura nenalezena</h2>
+<p class="muted">Faktura <strong>{{ numero }}</strong> v registru neexistuje.</p>
+<a href="/facturas" role="button">Zpět do registru</a>
+{% endblock %}
