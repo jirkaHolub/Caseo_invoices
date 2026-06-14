@@ -4,5 +4,5 @@ __pycache__/
 data.db
 data.db-wal
 data.db-shm
-facturas/
-!facturas/.gitkeep
+.env
+.vercel
