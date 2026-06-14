@@ -14,7 +14,10 @@ import sqlite3
 from datetime import datetime
 from typing import Optional
 
-DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
+# Connection string: vlastní DATABASE_URL, jinak POSTGRES_URL (Supabase↔Vercel
+# integrace ho nastavuje automaticky – pooler, vhodný pro serverless).
+DATABASE_URL = (os.environ.get("DATABASE_URL")
+                or os.environ.get("POSTGRES_URL") or "").strip()
 USE_PG = bool(DATABASE_URL)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
