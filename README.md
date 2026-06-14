@@ -41,8 +41,27 @@ pip install -r requirements.txt
 uvicorn app:app --reload        # http://localhost:8000
 ```
 
-> Aplikace cílí na Python 3.9+ a běží bez loginu (jen lokálně).
-> SQLite databáze `data.db` a PDF složka `facturas/` se vytvoří automaticky.
+> Lokálně (bez `DATABASE_URL`) běží na **SQLite** (`data.db` se vytvoří automaticky).
+> PDF se generuje **do paměti** (nic se neukládá na disk).
+
+### Konfigurace (env proměnné)
+Zkopíruj `.env.example` → `.env` (je v `.gitignore`). Proměnné:
+- `DATABASE_URL` – prázdné = SQLite; jinak Postgres/Supabase connection string.
+- `BASIC_AUTH_USER` + `BASIC_AUTH_PASS` – když jsou obě nastavené, web vyžaduje
+  jméno + heslo (HTTP Basic). Když ne, je bez ochrany (vhodné jen lokálně).
+
+## Nasazení (GitHub → Vercel + Supabase)
+1. **Supabase** (Postgres): v *SQL Editoru* spusť `schema.sql` (vytvoří tabulky).
+   Connection string vezmi z *Project Settings → Database → Connection string → URI*;
+   pro serverless použij **Connection pooling** (Transaction, port `6543`).
+2. **Vercel**: *Add New → Project* → naimportuj GitHub repo. V *Settings → Environment
+   Variables* nastav `DATABASE_URL`, `BASIC_AUTH_USER`, `BASIC_AUTH_PASS` → *Deploy*.
+   Konfigurace běhu je v `vercel.json` (Python runtime, `api/index.py` jako ASGI vstup).
+3. Po nasazení otevři doménu `*.vercel.app`, vyplň **Nastavení** (fiskální blok Caseo)
+   a můžeš fakturovat.
+
+> Na Vercelu (Linux, serverless) se PDF generuje reportlabem s **přibaleným fontem**
+> `fonts/DejaVuSans.ttf` (kvůli české diakritice) a do paměti (disk je read-only).
 
 ### PDF engine
 Ve výchozím stavu se používá **reportlab** (čistě Python, žádné systémové závislosti).

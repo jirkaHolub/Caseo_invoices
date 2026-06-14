@@ -4,6 +4,7 @@ jinja2
 python-multipart
 reportlab
 psycopg[binary]
+python-dotenv
 
 # WeasyPrint je volitelný, preferovaný engine pro PDF (renderuje z HTML šablony).
 # Vyžaduje systémové knihovny (pango, cairo) – na Vercelu NENÍ k dispozici, takže

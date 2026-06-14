@@ -20,6 +20,12 @@ from fastapi.responses import (
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+try:  # lokálně načte .env; na Vercelu proměnné přicházejí z dashboardu (no-op)
+    from dotenv import load_dotenv
+    load_dotenv()
+except Exception:
+    pass
+
 import db
 import domain
 from pdf import render_pdf, ACCENT
@@ -59,7 +65,12 @@ templates.env.filters["num_es"] = domain.format_number_es
 
 @app.on_event("startup")
 def _startup() -> None:
-    db.init_db()
+    # Lokálně (SQLite) vytvoří schéma. Na serverless/Postgresu se schéma zakládá
+    # přes schema.sql – proto chybu nešíříme dál, ať start nikdy nespadne.
+    try:
+        db.init_db()
+    except Exception:
+        pass
 
 
 def render(template: str, request: Request, **ctx) -> HTMLResponse:
