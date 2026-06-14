@@ -77,7 +77,8 @@ def render(template: str, request: Request, **ctx) -> HTMLResponse:
     ctx.setdefault("active", "")
     ctx["request"] = request
     ctx["accent"] = ACCENT
-    return templates.TemplateResponse(template, ctx)
+    # Starlette ≥0.29: signatura je TemplateResponse(request, name, context).
+    return templates.TemplateResponse(request, template, ctx)
 
 
 def settings_complete(s) -> bool:
