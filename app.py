@@ -61,6 +61,10 @@ templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 templates.env.filters["eur"] = domain.format_eur
 templates.env.filters["fecha"] = domain.format_date
 templates.env.filters["num_es"] = domain.format_number_es
+# Odvozené (z base/total) – IRPF jako srážka (záporně) a líquido k úhradě.
+templates.env.filters["irpf"] = lambda base: domain.format_eur(-domain.compute_retencion(base))
+templates.env.filters["liquido"] = lambda total, base: domain.format_eur(
+    domain.compute_liquido(total, base))
 
 
 @app.on_event("startup")
@@ -108,6 +112,9 @@ def build_ctx(inv: sqlite3.Row, s: sqlite3.Row) -> dict:
         "tipo_iva": inv["tipo_iva"],
         "cuota_iva": domain.format_eur(inv["cuota_iva"]),
         "total": domain.format_eur(inv["total"]),
+        "tipo_irpf": domain.TIPO_IRPF,
+        "retencion": domain.format_eur(-domain.compute_retencion(inv["base_imponible"])),
+        "liquido": domain.format_eur(domain.compute_liquido(inv["total"], inv["base_imponible"])),
         "leyenda": domain.LEYENDA,
         "accent": ACCENT,
     }
@@ -232,6 +239,9 @@ def invoice_preview(
         "cuota": domain.format_eur(cuota),
         "total": domain.format_eur(total_d),
         "tipo_iva": domain.TIPO_IVA,
+        "tipo_irpf": domain.TIPO_IRPF,
+        "retencion": domain.format_eur(-domain.compute_retencion(base)),
+        "liquido": domain.format_eur(domain.compute_liquido(total_d, base)),
         "fecha_expedicion": exp.isoformat(),
         "fecha_vencimiento": ven.isoformat(),
         "fecha_expedicion_es": domain.format_date(exp),
@@ -323,7 +333,8 @@ def registry(request: Request, owner: str = "", anio: str = "", msg: str = ""):
     invoices = db.list_invoices(owner_kod=owner or None, anio=anio_int)
     owners = db.list_owners()
     years = sorted({inv["fecha_expedicion"][:4] for inv in db.list_invoices()}, reverse=True)
-    total_sum = sum(Decimal(str(inv["total"])) for inv in invoices)
+    total_sum = sum(
+        domain.compute_liquido(inv["total"], inv["base_imponible"]) for inv in invoices)
     return render("registry.html", request, active="registry", invoices=invoices,
                   owners=owners, years=years, f_owner=owner, f_anio=anio,
                   total_sum=total_sum, msg=msg)
@@ -359,7 +370,8 @@ def export_csv(owner: str = "", anio: str = ""):
     w = csv.writer(buf, delimiter=";")
     w.writerow(["numero", "owner_kod", "razon_social", "mes_najmu",
                 "fecha_expedicion", "fecha_vencimiento", "base_imponible",
-                "tipo_iva", "cuota_iva", "total"])
+                "tipo_iva", "cuota_iva", "total",
+                "tipo_irpf", "retencion_irpf", "liquido"])
     for inv in invoices:
         w.writerow([
             inv["numero"], inv["owner_kod"], inv["owner_nombre"], inv["mes_najmu"],
@@ -369,6 +381,9 @@ def export_csv(owner: str = "", anio: str = ""):
             "{} %".format(inv["tipo_iva"]),
             domain.format_number_es(inv["cuota_iva"]),
             domain.format_number_es(inv["total"]),
+            "{} %".format(domain.TIPO_IRPF),
+            domain.format_number_es(domain.compute_retencion(inv["base_imponible"])),
+            domain.format_number_es(domain.compute_liquido(inv["total"], inv["base_imponible"])),
         ])
     buf.seek(0)
     headers = {"Content-Disposition": "attachment; filename=facturas_caseo.csv"}

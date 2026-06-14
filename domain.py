@@ -11,10 +11,12 @@ from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
 from typing import Optional, Tuple
 
 TIPO_IVA = 21
+TIPO_IRPF = 19  # retención IRPF (srážka daně z příjmu u zdroje, pronájem nemovitostí)
 LEYENDA = "Daňový doklad vystavený odběratelem jménem a na účet dodavatele (samofakturace)."
 
 _CENT = Decimal("0.01")
 _IVA_FACTOR = Decimal("1.21")  # 1 + 21 %
+_IRPF_FACTOR = Decimal("0.19")  # 19 % ze základu daně
 
 
 def _q(value: Decimal) -> Decimal:
@@ -52,6 +54,18 @@ def compute_amounts(total) -> Tuple[Decimal, Decimal, Decimal]:
     base = _q(total_d / _IVA_FACTOR)
     cuota = _q(total_d - base)  # dopočet, ať base + IVA == total přesně
     return base, cuota, total_d
+
+
+def compute_retencion(base) -> Decimal:
+    """Srážka daně z příjmu (retención IRPF) = base × 19 %."""
+    base_d = base if isinstance(base, Decimal) else Decimal(str(base))
+    return _q(base_d * _IRPF_FACTOR)
+
+
+def compute_liquido(total, base) -> Decimal:
+    """Částka k úhradě = brutto total (vč. DPH) − srážka daně z příjmu."""
+    total_d = total if isinstance(total, Decimal) else Decimal(str(total))
+    return _q(total_d - compute_retencion(base))
 
 
 # ---------------------------------------------------------------- datumy

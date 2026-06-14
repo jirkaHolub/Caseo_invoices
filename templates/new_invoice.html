@@ -80,7 +80,9 @@
         <tr id="pv-vs-row" style="display:none"><td>Variabilní symbol</td><td id="pv-vs">—</td></tr>
         <tr class="pv-sep"><td>Základ daně</td><td id="pv-base">—</td></tr>
         <tr><td>DPH (21 %)</td><td id="pv-cuota">—</td></tr>
-        <tr class="pv-total"><td>Celkem</td><td id="pv-total">—</td></tr>
+        <tr><td>Mezisoučet (vč. DPH)</td><td id="pv-total">—</td></tr>
+        <tr><td>Daň z příjmu (IRPF 19 %)</td><td id="pv-irpf">—</td></tr>
+        <tr class="pv-total"><td>K úhradě</td><td id="pv-liquido">—</td></tr>
         <tr class="pv-concepto"><td colspan="2"><small class="muted" id="pv-concepto">—</small></td></tr>
       </table>
       <small class="muted">Číslo je předběžné; skutečné se přidělí až při vygenerování.</small>
@@ -124,6 +126,8 @@ async function loadPreview() {
   $("pv-base").textContent = res.base;
   $("pv-cuota").textContent = res.cuota;
   $("pv-total").textContent = res.total;
+  $("pv-irpf").textContent = res.retencion;
+  $("pv-liquido").textContent = res.liquido;
   $("pv-concepto").textContent = res.concepto;
   if (res.variabilni_symbol) {
     $("pv-vs").textContent = res.variabilni_symbol;

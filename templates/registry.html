@@ -26,7 +26,8 @@
 <table>
   <thead>
     <tr><th>Número</th><th>Majitel</th><th>Měsíc</th><th class="r">Base</th>
-        <th class="r">IVA</th><th class="r">Total</th><th>Vencimiento</th><th>PDF</th></tr>
+        <th class="r">IVA</th><th class="r">Total</th><th class="r">IRPF</th>
+        <th class="r">K úhradě</th><th>Vencimiento</th><th>PDF</th></tr>
   </thead>
   <tbody>
     {% for i in invoices %}
@@ -36,14 +37,16 @@
       <td>{{ i.mes_najmu }}</td>
       <td class="r">{{ i.base_imponible | eur }}</td>
       <td class="r">{{ i.cuota_iva | eur }}</td>
-      <td class="r"><strong>{{ i.total | eur }}</strong></td>
+      <td class="r">{{ i.total | eur }}</td>
+      <td class="r">{{ i.base_imponible | irpf }}</td>
+      <td class="r"><strong>{{ i.total | liquido(i.base_imponible) }}</strong></td>
       <td>{{ i.fecha_vencimiento | fecha }}</td>
       <td><a href="/facturas/{{ i.numero }}/pdf" target="_blank">PDF ↗</a></td>
     </tr>
     {% endfor %}
   </tbody>
   <tfoot>
-    <tr><td colspan="5" class="r"><strong>Σ Total ({{ invoices|length }})</strong></td>
+    <tr><td colspan="7" class="r"><strong>Σ K úhradě ({{ invoices|length }})</strong></td>
         <td class="r"><strong>{{ total_sum | eur }}</strong></td><td colspan="2"></td></tr>
   </tfoot>
 </table>

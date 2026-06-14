@@ -201,19 +201,22 @@ def _reportlab(ctx: dict, target) -> int:
     story.append(Spacer(1, 10))
 
     # --- Souhrn: pravý vyvážený box ---
-    res_w = W * 0.44
+    res_w = W * 0.50
     resumen = Table(
         [[P("Základ daně", base), P(ctx["base_imponible"], money)],
          [P("DPH ({} %)".format(ctx["tipo_iva"]), base), P(ctx["cuota_iva"], money)],
-         [P("CELKEM K ÚHRADĚ", total_label), P(ctx["total"], money_total)]],
-        colWidths=[res_w * 0.56, res_w * 0.44], hAlign="RIGHT",
+         [P("Mezisoučet (vč. DPH)", base), P(ctx["total"], money)],
+         [P("Daň z příjmu (IRPF {} %)".format(ctx["tipo_irpf"]), base),
+          P(ctx["retencion"], money)],
+         [P("CELKEM K ÚHRADĚ", total_label), P(ctx["liquido"], money_total)]],
+        colWidths=[res_w * 0.62, res_w * 0.38], hAlign="RIGHT",
     )
     resumen.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, -1), light),
-        ("LINEABOVE", (0, 2), (-1, 2), 1, accent),
+        ("LINEABOVE", (0, 4), (-1, 4), 1, accent),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("TOPPADDING", (0, 0), (-1, -1), 4), ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-        ("TOPPADDING", (0, 2), (-1, 2), 6), ("BOTTOMPADDING", (0, 2), (-1, 2), 6),
+        ("TOPPADDING", (0, 4), (-1, 4), 6), ("BOTTOMPADDING", (0, 4), (-1, 4), 6),
         ("LEFTPADDING", (0, 0), (-1, -1), 10), ("RIGHTPADDING", (-1, 0), (-1, -1), 10),
     ]))
     story.append(resumen)

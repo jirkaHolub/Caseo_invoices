@@ -86,7 +86,9 @@
   <table class="fx-resumen">
     <tr><td>Základ daně</td><td class="r">{{ c.base_imponible }}</td></tr>
     <tr><td>DPH ({{ c.tipo_iva }} %)</td><td class="r">{{ c.cuota_iva }}</td></tr>
-    <tr class="tot"><td>CELKEM K ÚHRADĚ</td><td class="r">{{ c.total }}</td></tr>
+    <tr><td>Mezisoučet (vč. DPH)</td><td class="r">{{ c.total }}</td></tr>
+    <tr><td>Daň z příjmu (IRPF {{ c.tipo_irpf }} %)</td><td class="r">{{ c.retencion }}</td></tr>
+    <tr class="tot"><td>CELKEM K ÚHRADĚ</td><td class="r">{{ c.liquido }}</td></tr>
   </table>
 
   <div class="fx-legend">
