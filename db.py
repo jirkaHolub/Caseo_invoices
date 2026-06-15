@@ -381,16 +381,77 @@ def create_invoice_atomic(
         conn.close()
 
 
-def delete_invoice(numero: str) -> bool:
-    """Smaže fakturu. Vrací True, pokud řádek existoval.
+def _seq_from_numero(numero, kod, anio):
+    """Vytáhne pořadové číslo z 'KOD-ROK-NNNN'. None, pokud neodpovídá vzoru."""
+    prefix = "{}-{}-".format(kod, anio)
+    if numero and numero.startswith(prefix):
+        tail = numero[len(prefix):]
+        if tail.isdigit():
+            return int(tail)
+    return None
 
-    Counter (řada čísel) se ZÁMĚRNĚ nesnižuje – v číselné řadě tak zůstane
-    mezera a smazané číslo se znovu nepřidělí (správné chování pro daňový doklad).
-    """
+
+def _resync_counter(conn, owner_kod, anio) -> None:
+    """Srovná counter na nejvyšší pořadové číslo mezi zbývajícími fakturami
+    daného majitele a roku (0, pokud žádná). Volá se po smazání i ruční změně čísla
+    → po vymazání všech začne řada znovu od 01."""
+    rows = _ex(conn, "SELECT numero FROM invoices WHERE owner_kod = ? "
+               "AND substr(fecha_expedicion, 1, 4) = ?", (owner_kod, str(anio))).fetchall()
+    max_seq = 0
+    for r in rows:
+        s = _seq_from_numero(r["numero"], owner_kod, anio)
+        if s and s > max_seq:
+            max_seq = s
+    if USE_PG:
+        _ex(conn, "INSERT INTO counters (owner_kod, anio, last_seq) VALUES (?, ?, ?) "
+            "ON CONFLICT (owner_kod, anio) DO UPDATE SET last_seq = EXCLUDED.last_seq",
+            (owner_kod, anio, max_seq))
+    else:
+        cur = _ex(conn, "UPDATE counters SET last_seq = ? WHERE owner_kod = ? AND anio = ?",
+                  (max_seq, owner_kod, anio))
+        if cur.rowcount == 0:
+            _ex(conn, "INSERT INTO counters (owner_kod, anio, last_seq) VALUES (?, ?, ?)",
+                (owner_kod, anio, max_seq))
+
+
+def delete_invoice(numero: str) -> bool:
+    """Smaže fakturu a srovná číselnou řadu (viz _resync_counter). Vrací True,
+    pokud řádek existoval. Po smazání všech faktur majitele/roku začne řada od 01."""
     conn = get_conn()
     try:
-        cur = _ex(conn, "DELETE FROM invoices WHERE numero = ?", (numero,))
+        row = _ex(conn, "SELECT owner_kod, fecha_expedicion FROM invoices WHERE numero = ?",
+                  (numero,)).fetchone()
+        if row is None:
+            return False
+        _ex(conn, "DELETE FROM invoices WHERE numero = ?", (numero,))
+        _resync_counter(conn, row["owner_kod"], int(row["fecha_expedicion"][:4]))
         conn.commit()
-        return cur.rowcount > 0
+        return True
+    finally:
+        conn.close()
+
+
+def rename_invoice(old_numero: str, new_numero: str) -> None:
+    """Ruční přečíslování faktury. Ověří jedinečnost a srovná counter.
+    Vyhodí ValueError (česky) při prázdném/duplicitním čísle nebo nenalezení."""
+    new_numero = (new_numero or "").strip()
+    if not new_numero:
+        raise ValueError("Číslo faktury nesmí být prázdné.")
+    if new_numero == old_numero:
+        return
+    conn = get_conn()
+    try:
+        row = _ex(conn, "SELECT owner_kod, fecha_expedicion FROM invoices WHERE numero = ?",
+                  (old_numero,)).fetchone()
+        if row is None:
+            raise ValueError("Faktura {} nenalezena.".format(old_numero))
+        if _ex(conn, "SELECT 1 FROM invoices WHERE numero = ?", (new_numero,)).fetchone():
+            raise ValueError("Faktura s číslem {} už existuje.".format(new_numero))
+        _ex(conn, "UPDATE invoices SET numero = ? WHERE numero = ?", (new_numero, old_numero))
+        _resync_counter(conn, row["owner_kod"], int(row["fecha_expedicion"][:4]))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()

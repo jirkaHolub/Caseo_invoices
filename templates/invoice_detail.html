@@ -13,6 +13,12 @@
   </div>
 </div>
 
+<form method="post" action="/facturas/{{ inv.numero }}/numero" class="num-edit">
+  <label for="nuevo_numero">Číslo faktury</label>
+  <input id="nuevo_numero" name="nuevo_numero" value="{{ inv.numero }}" required>
+  <button type="submit" class="outline small">Uložit číslo</button>
+</form>
+
 <article class="paper">
   {% set embed = True %}
   {% include "invoice_pdf.html" with context %}

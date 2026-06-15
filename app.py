@@ -12,7 +12,7 @@ import secrets
 from datetime import date
 from decimal import Decimal
 from typing import Optional
-from urllib.parse import quote_plus
+from urllib.parse import quote, quote_plus
 
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import (
@@ -347,13 +347,14 @@ def registry(request: Request, owner: str = "", anio: str = "", msg: str = ""):
 
 
 @app.get("/facturas/{numero}", response_class=HTMLResponse)
-def invoice_detail(request: Request, numero: str, msg: str = ""):
+def invoice_detail(request: Request, numero: str, msg: str = "", err: str = ""):
     inv = db.get_invoice(numero)
     if inv is None:
         return render("not_found.html", request, numero=numero)
     s = db.get_settings()
     ctx = build_ctx(inv, s)
-    return render("invoice_detail.html", request, active="registry", inv=inv, c=ctx, msg=msg)
+    return render("invoice_detail.html", request, active="registry", inv=inv, c=ctx,
+                  msg=msg, err=err)
 
 
 @app.get("/facturas/{numero}/pdf")
@@ -372,6 +373,22 @@ def invoice_delete(numero: str):
     msg = ("Faktura {} byla smazána.".format(numero) if deleted
            else "Faktura {} nenalezena.".format(numero))
     return RedirectResponse("/facturas?msg=" + quote_plus(msg), status_code=303)
+
+
+@app.post("/facturas/{numero}/numero")
+def invoice_rename(numero: str, nuevo_numero: str = Form(...)):
+    """Ruční změna čísla faktury (ověří jedinečnost, srovná číselnou řadu)."""
+    try:
+        db.rename_invoice(numero, nuevo_numero)
+    except ValueError as e:
+        return RedirectResponse(
+            "/facturas/{}?err={}".format(quote(numero, safe=""), quote_plus(str(e))),
+            status_code=303)
+    target = (nuevo_numero or "").strip() or numero
+    return RedirectResponse(
+        "/facturas/{}?msg={}".format(quote(target, safe=""),
+                                     quote_plus("Číslo faktury změněno.")),
+        status_code=303)
 
 
 # ============================================================ CSV export
