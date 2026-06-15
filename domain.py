@@ -102,13 +102,15 @@ def default_dates(mes: str) -> Tuple[date, date]:
 
 # ---------------------------------------------------------------- concepto
 
+# Názvy měsíců slovně (čeština) – pro popis faktury "Nájemné za měsíc <měsíc> <rok>".
+_MESICE_CS = ("leden", "únor", "březen", "duben", "květen", "červen",
+              "červenec", "srpen", "září", "říjen", "listopad", "prosinec")
+
+
 def default_concepto(nombre_propiedad: Optional[str], mes: str) -> str:
+    """Výchozí popis: "Nájemné za měsíc <měsíc slovně> <rok>" (např. červen 2026)."""
     year, month = parse_mes(mes)
-    periodo = "{:02d}/{}".format(month, year)
-    base = "Pronájem turistického ubytování"
-    if nombre_propiedad and nombre_propiedad.strip():
-        base += " — {}".format(nombre_propiedad.strip())
-    return "{} — {}".format(base, periodo)
+    return "Nájemné za měsíc {} {}".format(_MESICE_CS[month - 1], year)
 
 
 # ---------------------------------------------------------------- číslo faktury

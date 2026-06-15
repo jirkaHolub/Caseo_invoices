@@ -5,13 +5,16 @@
   --pico-primary-hover: #0f5a91;
   --pico-primary-focus: rgba(19, 113, 181, .25);
   --pico-form-element-active-border-color: #1371B5;
+  /* Konstantní menší základ písma – Pico jinak na velkých displejích zvětšuje
+     až na ~21 px, kvůli čemuž se částky s „€" nevejdou na řádek. */
+  font-size: 15px;
 }
 
 body { background: #f6f8fa; }
 
 /* ---- app bar ---- */
 .appbar { background: var(--caseo); color: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.12); }
-.appbar-inner { max-width: 1100px; margin: 0 auto; padding: .6rem 1rem;
+.appbar-inner { max-width: min(1440px, 94vw); margin: 0 auto; padding: .6rem 1rem;
   display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
 .brand { color: #fff; font-weight: 700; font-size: 1.15rem; text-decoration: none; }
 .brand span { font-weight: 400; opacity: .9; }
@@ -21,7 +24,8 @@ body { background: #f6f8fa; }
 .appbar nav a:hover { background: rgba(255,255,255,.15); opacity: 1; }
 .appbar nav a.is-active { background: rgba(255,255,255,.22); opacity: 1; font-weight: 600; }
 
-.container { max-width: 1100px; }
+/* Širší obsah – na velkých monitorech (Mac) využije víc šířky, ne jen úzký střed. */
+.container { max-width: min(1440px, 94vw); }
 main.container { padding-top: 1.4rem; }
 .foot { opacity: .6; padding-bottom: 2rem; }
 
@@ -47,7 +51,9 @@ button.small, [role="button"].small { padding: .25rem .6rem; font-size: .8rem; }
 .danger { --pico-color: #b3261e; border-color: #e0a8a4; color: #b3261e; }
 
 /* ---- tables ---- */
-table th.r, table td.r { text-align: right; }
+table { font-size: .92rem; }
+/* Částky doprava, nikdy nezalamovat (jinak „€" padá na další řádek), zarovnané číslice. */
+table th.r, table td.r { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .filters { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; margin: 1rem 0; }
 .filters select { width: auto; margin: 0; }
 
@@ -58,7 +64,7 @@ table th.r, table td.r { text-align: right; }
   color: var(--caseo); font-weight: 700; }
 .pv-table { width: 100%; margin: .6rem 0; }
 .pv-table td { padding: .3rem 0; border: none; }
-.pv-table td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+.pv-table td:last-child { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .pv-table tr.pv-sep td { border-top: 1px solid #e1e6ea; padding-top: .5rem; }
 .pv-table tr.pv-total td { font-weight: 700; font-size: 1.15rem; color: var(--caseo);
   border-top: 2px solid var(--caseo); padding-top: .5rem; }
