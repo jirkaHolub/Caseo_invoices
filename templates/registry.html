@@ -41,7 +41,13 @@
       <td class="r">{{ i.base_imponible | irpf }}</td>
       <td class="r"><strong>{{ i.total | liquido(i.base_imponible) }}</strong></td>
       <td>{{ i.fecha_vencimiento | fecha }}</td>
-      <td><a href="/facturas/{{ i.numero }}/pdf" target="_blank">PDF ↗</a></td>
+      <td class="cell-actions">
+        <a href="/facturas/{{ i.numero }}/pdf" target="_blank">PDF ↗</a>
+        <form method="post" action="/facturas/{{ i.numero }}/delete"
+              onsubmit="return confirm('Opravdu smazat fakturu {{ i.numero }}? Nevratné.');">
+          <button type="submit" class="icon-del" title="Smazat fakturu {{ i.numero }}">✕</button>
+        </form>
+      </td>
     </tr>
     {% endfor %}
   </tbody>

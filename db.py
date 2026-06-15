@@ -372,3 +372,18 @@ def create_invoice_atomic(
         raise
     finally:
         conn.close()
+
+
+def delete_invoice(numero: str) -> bool:
+    """Smaže fakturu. Vrací True, pokud řádek existoval.
+
+    Counter (řada čísel) se ZÁMĚRNĚ nesnižuje – v číselné řadě tak zůstane
+    mezera a smazané číslo se znovu nepřidělí (správné chování pro daňový doklad).
+    """
+    conn = get_conn()
+    try:
+        cur = _ex(conn, "DELETE FROM invoices WHERE numero = ?", (numero,))
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()

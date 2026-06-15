@@ -6,6 +6,10 @@
   <div class="row-actions">
     <a href="/facturas/{{ inv.numero }}/pdf" role="button" target="_blank">Stáhnout PDF</a>
     <a href="/facturas" role="button" class="outline secondary">Zpět do registru</a>
+    <form method="post" action="/facturas/{{ inv.numero }}/delete"
+          onsubmit="return confirm('Opravdu smazat fakturu {{ inv.numero }}? Tato akce je nevratná a číslo se znovu nepřidělí.');">
+      <button type="submit" class="outline danger">Smazat</button>
+    </form>
   </div>
 </div>
 

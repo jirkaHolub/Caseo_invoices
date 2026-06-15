@@ -12,6 +12,7 @@ import secrets
 from datetime import date
 from decimal import Decimal
 from typing import Optional
+from urllib.parse import quote_plus
 
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import (
@@ -357,6 +358,15 @@ def invoice_pdf(numero: str):
         return JSONResponse({"error": "Faktura nenalezena."}, status_code=404)
     return Response(content=data, media_type="application/pdf", headers={
         "Content-Disposition": 'inline; filename="{}.pdf"'.format(numero)})
+
+
+@app.post("/facturas/{numero}/delete")
+def invoice_delete(numero: str):
+    """Smaže fakturu (nevratné). POST kvůli bezpečnosti; chrání HTTP Basic auth."""
+    deleted = db.delete_invoice(numero)
+    msg = ("Faktura {} byla smazána.".format(numero) if deleted
+           else "Faktura {} nenalezena.".format(numero))
+    return RedirectResponse("/facturas?msg=" + quote_plus(msg), status_code=303)
 
 
 # ============================================================ CSV export
