@@ -101,6 +101,7 @@ def build_ctx(inv: sqlite3.Row, s: sqlite3.Row) -> dict:
         "periodo": "{}/{}".format(month, year),
         "emisor_nombre": inv["owner_nombre"],
         "emisor_nif": inv["owner_nif"],
+        "emisor_tipo_id": inv["owner_tipo_id"] or "NIF",
         "emisor_domicilio": inv["owner_domicilio"],
         "emisor_propiedad": inv["owner_propiedad"] or "",
         "emisor_email": inv["owner_email"] or "",
@@ -158,13 +159,15 @@ def owners_create(
     email: str = Form(""),
     nombre_propiedad: str = Form(""),
     variabilni_symbol: str = Form(""),
+    tipo_id: str = Form("NIF"),
 ):
     kod = kod.strip().upper()
     if not kod:
         return RedirectResponse("/propietarios?err=Kód+je+povinný.", status_code=303)
     try:
         db.create_owner(kod, nombre.strip(), nif.strip(), domicilio.strip(),
-                        email.strip(), nombre_propiedad.strip(), variabilni_symbol.strip())
+                        email.strip(), nombre_propiedad.strip(), variabilni_symbol.strip(),
+                        domain.normalize_tipo_id(tipo_id))
     except db.DuplicateKod:
         return RedirectResponse(
             "/propietarios?err=Majitel+s+kódem+{}+už+existuje.".format(kod), status_code=303)
@@ -180,9 +183,11 @@ def owners_update(
     email: str = Form(""),
     nombre_propiedad: str = Form(""),
     variabilni_symbol: str = Form(""),
+    tipo_id: str = Form("NIF"),
 ):
     db.update_owner(kod, nombre.strip(), nif.strip(), domicilio.strip(),
-                    email.strip(), nombre_propiedad.strip(), variabilni_symbol.strip())
+                    email.strip(), nombre_propiedad.strip(), variabilni_symbol.strip(),
+                    domain.normalize_tipo_id(tipo_id))
     return RedirectResponse("/propietarios?msg=Majitel+{}+upraven.".format(kod), status_code=303)
 
 

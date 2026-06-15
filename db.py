@@ -81,6 +81,7 @@ CREATE TABLE IF NOT EXISTS owners (
     email             TEXT,
     nombre_propiedad  TEXT,
     variabilni_symbol TEXT,
+    tipo_id           TEXT NOT NULL DEFAULT 'NIF',
     created_at        TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS settings (
@@ -123,6 +124,7 @@ _PG_SCHEMA = [
         email             TEXT,
         nombre_propiedad  TEXT,
         variabilni_symbol TEXT,
+        tipo_id           TEXT NOT NULL DEFAULT 'NIF',
         created_at        TEXT NOT NULL
     )""",
     """CREATE TABLE IF NOT EXISTS settings (
@@ -152,6 +154,7 @@ _PG_SCHEMA = [
         PRIMARY KEY (owner_kod, anio)
     )""",
     "ALTER TABLE owners ADD COLUMN IF NOT EXISTS variabilni_symbol TEXT",
+    "ALTER TABLE owners ADD COLUMN IF NOT EXISTS tipo_id TEXT NOT NULL DEFAULT 'NIF'",
 ]
 
 
@@ -171,6 +174,8 @@ def init_db() -> None:
             cols = [r["name"] for r in conn.execute("PRAGMA table_info(owners)").fetchall()]
             if "variabilni_symbol" not in cols:
                 conn.execute("ALTER TABLE owners ADD COLUMN variabilni_symbol TEXT")
+            if "tipo_id" not in cols:
+                conn.execute("ALTER TABLE owners ADD COLUMN tipo_id TEXT NOT NULL DEFAULT 'NIF'")
             conn.execute(
                 "INSERT OR IGNORE INTO settings (id, razon, nif, domicilio) "
                 "VALUES (1, 'Caseo', '', '')"
@@ -199,14 +204,15 @@ def get_owner(kod: str):
 
 
 def create_owner(kod, nombre, nif, domicilio, email, nombre_propiedad,
-                 variabilni_symbol) -> None:
+                 variabilni_symbol, tipo_id="NIF") -> None:
     conn = get_conn()
     try:
         _ex(conn,
             "INSERT INTO owners (kod, nombre, nif, domicilio, email, nombre_propiedad, "
-            "variabilni_symbol, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "variabilni_symbol, tipo_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (kod, nombre, nif, domicilio, email or None, nombre_propiedad or None,
-             variabilni_symbol or None, datetime.now().isoformat(timespec="seconds")))
+             variabilni_symbol or None, tipo_id,
+             datetime.now().isoformat(timespec="seconds")))
         conn.commit()
     except Exception as exc:
         conn.rollback()
@@ -218,15 +224,15 @@ def create_owner(kod, nombre, nif, domicilio, email, nombre_propiedad,
 
 
 def update_owner(kod, nombre, nif, domicilio, email, nombre_propiedad,
-                 variabilni_symbol) -> None:
+                 variabilni_symbol, tipo_id="NIF") -> None:
     """Aktualizuje fiskální údaje majitele. Kód (kod) se nemění – je klíčem ve fakturách."""
     conn = get_conn()
     try:
         _ex(conn,
             "UPDATE owners SET nombre = ?, nif = ?, domicilio = ?, email = ?, "
-            "nombre_propiedad = ?, variabilni_symbol = ? WHERE kod = ?",
+            "nombre_propiedad = ?, variabilni_symbol = ?, tipo_id = ? WHERE kod = ?",
             (nombre, nif, domicilio, email or None, nombre_propiedad or None,
-             variabilni_symbol or None, kod))
+             variabilni_symbol or None, tipo_id, kod))
         conn.commit()
     finally:
         conn.close()
@@ -278,7 +284,8 @@ def get_invoice(numero: str):
         return _ex(conn,
             "SELECT i.*, o.nombre AS owner_nombre, o.nif AS owner_nif, "
             "o.domicilio AS owner_domicilio, o.nombre_propiedad AS owner_propiedad, "
-            "o.email AS owner_email, o.variabilni_symbol AS owner_vs "
+            "o.email AS owner_email, o.variabilni_symbol AS owner_vs, "
+            "o.tipo_id AS owner_tipo_id "
             "FROM invoices i LEFT JOIN owners o ON o.kod = i.owner_kod "
             "WHERE i.numero = ?", (numero,)).fetchone()
     finally:

@@ -130,9 +130,9 @@ def _reportlab(ctx: dict, target) -> int:
     story.append(HRFlowable(width="100%", thickness=1.5, color=accent, spaceAfter=11))
 
     # --- Dodavatel / Odběratel: dvě symetrické boxy s mezerou ---
-    def party(label_txt, nombre, nif, domicilio, extra=""):
+    def party(label_txt, nombre, nif, domicilio, extra="", id_label="NIF"):
         cell = [P(label_txt, label), P(nombre or "—", party_name),
-                P("NIF: {}".format(nif or "—"), base),
+                P("{}: {}".format(id_label, nif or "—"), base),
                 P(domicilio or "—", base)]
         if extra:
             cell.append(P(extra, small))
@@ -142,7 +142,8 @@ def _reportlab(ctx: dict, target) -> int:
     col = (W - gap) / 2.0
     parties = Table(
         [[party("DODAVATEL (poskytovatel)", ctx["emisor_nombre"], ctx["emisor_nif"],
-                ctx["emisor_domicilio"], ctx.get("emisor_propiedad", "")),
+                ctx["emisor_domicilio"], ctx.get("emisor_propiedad", ""),
+                id_label=ctx.get("emisor_tipo_id", "NIF")),
           "",
           party("ODBĚRATEL (zákazník)", ctx["dest_razon"], ctx["dest_nif"],
                 ctx["dest_domicilio"])]],

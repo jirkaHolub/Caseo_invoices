@@ -48,7 +48,7 @@
     <div class="fx-party">
       <div class="fx-label">Dodavatel (poskytovatel)</div>
       <div class="name">{{ c.emisor_nombre }}</div>
-      <div>NIF: {{ c.emisor_nif }}</div>
+      <div>{{ c.emisor_tipo_id }}: {{ c.emisor_nif }}</div>
       <div>{{ c.emisor_domicilio }}</div>
       {% if c.emisor_propiedad %}<div><small>{{ c.emisor_propiedad }}</small></div>{% endif %}
     </div>

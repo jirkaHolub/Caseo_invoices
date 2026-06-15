@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS owners (
     email             TEXT,
     nombre_propiedad  TEXT,
     variabilni_symbol TEXT,
+    tipo_id           TEXT NOT NULL DEFAULT 'NIF',
     created_at        TEXT NOT NULL
 );
 

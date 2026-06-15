@@ -12,6 +12,7 @@ from typing import Optional, Tuple
 
 TIPO_IVA = 21
 TIPO_IRPF = 19  # retención IRPF (srážka daně z příjmu u zdroje, pronájem nemovitostí)
+TIPOS_ID = ("NIF", "NIE", "IČ")  # typ daňového ID dodavatele (ES rezident / cizinec / české IČ)
 LEYENDA = "Daňový doklad vystavený odběratelem jménem a na účet dodavatele (samofakturace)."
 
 _CENT = Decimal("0.01")
@@ -66,6 +67,12 @@ def compute_liquido(total, base) -> Decimal:
     """Částka k úhradě = brutto total (vč. DPH) − srážka daně z příjmu."""
     total_d = total if isinstance(total, Decimal) else Decimal(str(total))
     return _q(total_d - compute_retencion(base))
+
+
+def normalize_tipo_id(value) -> str:
+    """Vrátí platný typ daňového ID (NIF/NIE/IČ); neznámé/prázdné → 'NIF'."""
+    v = (value or "").strip()
+    return v if v in TIPOS_ID else "NIF"
 
 
 # ---------------------------------------------------------------- datumy
