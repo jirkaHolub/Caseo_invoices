@@ -97,9 +97,10 @@ def build_ctx(inv: sqlite3.Row, s: sqlite3.Row) -> dict:
     """Sestaví slovník s formátovanými hodnotami pro PDF / náhled faktury."""
     year, _, month = (inv["mes_najmu"] or "-").partition("-")
     liquido = domain.compute_liquido(inv["total"], inv["base_imponible"])
-    # QR platba (SPAYD): IBAN majitele, částka k úhradě, VS a číslo faktury.
+    # QR platba (SPAYD): IBAN majitele, částka k úhradě, VS (X-VS) a zpráva
+    # s účelem "payout caseo" + číslem faktury.
     qr_payload = qr.spayd_payload(inv["owner_iban"], liquido, inv["owner_vs"],
-                                  "Faktura " + inv["numero"])
+                                  "payout caseo " + inv["numero"])
     return {
         "numero": inv["numero"],
         "fecha_expedicion": domain.format_date(inv["fecha_expedicion"]),
