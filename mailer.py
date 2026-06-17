@@ -53,7 +53,9 @@ def send_email(to, subject: str, html: str, attachments=None) -> str:
 
     req = urllib.request.Request(
         RESEND_API_URL, data=json.dumps(payload).encode("utf-8"), method="POST",
-        headers={"Authorization": "Bearer " + api_key, "Content-Type": "application/json"})
+        headers={"Authorization": "Bearer " + api_key, "Content-Type": "application/json",
+                 # Cloudflare u Resendu blokuje výchozí UA "Python-urllib" (chyba 1010).
+                 "User-Agent": "Caseo-Invoices/1.0"})
     try:
         with urllib.request.urlopen(req, timeout=20) as resp:
             body = resp.read().decode("utf-8", "replace")
