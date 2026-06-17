@@ -232,14 +232,20 @@ def _reportlab(ctx: dict, target) -> int:
         ("TOPPADDING", (0, 4), (-1, 4), 6), ("BOTTOMPADDING", (0, 4), (-1, 4), 6),
         ("LEFTPADDING", (0, 0), (-1, -1), 10), ("RIGHTPADDING", (-1, 0), (-1, -1), 10),
     ]))
-    # QR platba vlevo, souhrn vpravo (pokud má majitel IBAN).
+    # QR platba vlevo (+ čitelné údaje), souhrn vpravo (pokud má majitel IBAN).
     if ctx.get("qr_payload"):
-        qr_cell = [_qr_drawing(ctx["qr_payload"], 30 * mm),
-                   P("QR platba — {}".format(ctx["liquido"]), small)]
-        pay = Table([[qr_cell, resumen]], colWidths=[W * 0.38, W * 0.62])
+        details = ["IBAN: {}".format(ctx.get("emisor_iban") or "—"),
+                   "Částka: {}".format(ctx["liquido"])]
+        if ctx.get("variabilni_symbol"):
+            details.append("VS: {}".format(ctx["variabilni_symbol"]))
+        details.append("Faktura: {}".format(ctx["numero"]))
+        details.append("Účel: payout caseo")
+        qr_cell = [_qr_drawing(ctx["qr_payload"], 28 * mm),
+                   P("QR platba", label), P("<br/>".join(details), small)]
+        pay = Table([[qr_cell, resumen]], colWidths=[W * 0.42, W * 0.58])
         pay.setStyle(TableStyle([
             ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ("ALIGN", (0, 0), (0, 0), "CENTER"),
+            ("ALIGN", (0, 0), (0, 0), "LEFT"),
             ("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0),
             ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
         ]))

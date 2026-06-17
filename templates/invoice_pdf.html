@@ -27,9 +27,12 @@
   .factura table.fx-items td { padding: 7px 0; border-bottom: 1px solid #d8d8d8; vertical-align: top; }
   .factura .r { text-align: right; white-space: nowrap; }
   .factura .fx-pay { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 12px; }
-  .factura .fx-qr { text-align: center; }
-  .factura .fx-qr svg { width: 130px; height: 130px; display: block; }
-  .factura .fx-qr-cap { font-size: 7pt; color: #555; margin-top: 3px; }
+  .factura .fx-qr { display: flex; gap: 10px; align-items: flex-start; }
+  .factura .fx-qr svg { width: 110px; height: 110px; display: block; }
+  .factura .fx-paydetails { font-size: 7.5pt; border-collapse: collapse; margin-top: 2px; }
+  .factura .fx-paydetails td { padding: 1px 8px 1px 0; vertical-align: top; }
+  .factura .fx-paydetails .k { color: #555; white-space: nowrap; }
+  .factura .fx-paydetails .v { font-weight: 600; word-break: break-all; }
   .factura .fx-resumen { width: 44%; margin-left: auto; border-collapse: collapse;
              background: #EAF2FA; border-radius: 5px; }
   .factura .fx-resumen td { padding: 5px 10px; }
@@ -91,7 +94,16 @@
     {% if c.qr_svg %}
     <div class="fx-qr">
       <div class="fx-qr-img">{{ c.qr_svg | safe }}</div>
-      <div class="fx-qr-cap">QR platba<br>{{ c.liquido }}</div>
+      <div class="fx-paywrap">
+        <div class="fx-label">QR platba</div>
+        <table class="fx-paydetails">
+          <tr><td class="k">IBAN</td><td class="v">{{ c.emisor_iban }}</td></tr>
+          <tr><td class="k">Částka</td><td class="v">{{ c.liquido }}</td></tr>
+          {% if c.variabilni_symbol %}<tr><td class="k">VS</td><td class="v">{{ c.variabilni_symbol }}</td></tr>{% endif %}
+          <tr><td class="k">Faktura</td><td class="v">{{ c.numero }}</td></tr>
+          <tr><td class="k">Účel</td><td class="v">payout caseo</td></tr>
+        </table>
+      </div>
     </div>
     {% endif %}
     <table class="fx-resumen">

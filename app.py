@@ -112,6 +112,7 @@ def build_ctx(inv: sqlite3.Row, s: sqlite3.Row) -> dict:
         "emisor_domicilio": inv["owner_domicilio"],
         "emisor_propiedad": inv["owner_propiedad"] or "",
         "emisor_email": inv["owner_email"] or "",
+        "emisor_iban": inv["owner_iban"] or "",
         "variabilni_symbol": inv["owner_vs"] or "",
         "dest_razon": s["razon"],
         "dest_nif": s["nif"],
