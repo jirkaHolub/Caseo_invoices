@@ -3,6 +3,7 @@ uvicorn[standard]
 jinja2
 python-multipart
 reportlab
+qrcode
 psycopg[binary]
 python-dotenv
 

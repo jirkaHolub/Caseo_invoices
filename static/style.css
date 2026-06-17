@@ -90,6 +90,9 @@ fieldset.radio-inline .radios label { margin: 0; display: inline-flex; align-ite
 .num-edit input { width: auto; min-width: 13rem; margin: 0; font-variant-numeric: tabular-nums; }
 .num-edit button { margin: 0; flex: 0 0 auto; }
 
+.mail-status { font-size: .85rem; margin: .1rem 0 1rem; }
+.sent-mark { color: #1e6b34; font-size: .85rem; }
+
 /* ---- paper (detail) ---- */
 .paper { background: #fff; padding: 2.2rem; box-shadow: 0 1px 8px rgba(0,0,0,.08); }
 

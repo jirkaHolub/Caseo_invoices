@@ -26,7 +26,11 @@
   .factura table.fx-items th:first-child { text-align: left; }
   .factura table.fx-items td { padding: 7px 0; border-bottom: 1px solid #d8d8d8; vertical-align: top; }
   .factura .r { text-align: right; white-space: nowrap; }
-  .factura .fx-resumen { width: 44%; margin-left: 56%; border-collapse: collapse;
+  .factura .fx-pay { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 12px; }
+  .factura .fx-qr { text-align: center; }
+  .factura .fx-qr svg { width: 130px; height: 130px; display: block; }
+  .factura .fx-qr-cap { font-size: 7pt; color: #555; margin-top: 3px; }
+  .factura .fx-resumen { width: 44%; margin-left: auto; border-collapse: collapse;
              background: #EAF2FA; border-radius: 5px; }
   .factura .fx-resumen td { padding: 5px 10px; }
   .factura .fx-resumen .tot td { border-top: 1px solid {{ c.accent }}; padding: 7px 10px;
@@ -83,13 +87,21 @@
     </tbody>
   </table>
 
-  <table class="fx-resumen">
-    <tr><td>Základ daně</td><td class="r">{{ c.base_imponible }}</td></tr>
-    <tr><td>DPH ({{ c.tipo_iva }} %)</td><td class="r">{{ c.cuota_iva }}</td></tr>
-    <tr><td>Mezisoučet (vč. DPH)</td><td class="r">{{ c.total }}</td></tr>
-    <tr><td>Daň z příjmu (IRPF {{ c.tipo_irpf }} %)</td><td class="r">{{ c.retencion }}</td></tr>
-    <tr class="tot"><td>CELKEM K ÚHRADĚ</td><td class="r">{{ c.liquido }}</td></tr>
-  </table>
+  <div class="fx-pay">
+    {% if c.qr_svg %}
+    <div class="fx-qr">
+      <div class="fx-qr-img">{{ c.qr_svg | safe }}</div>
+      <div class="fx-qr-cap">QR platba<br>{{ c.liquido }}</div>
+    </div>
+    {% endif %}
+    <table class="fx-resumen">
+      <tr><td>Základ daně</td><td class="r">{{ c.base_imponible }}</td></tr>
+      <tr><td>DPH ({{ c.tipo_iva }} %)</td><td class="r">{{ c.cuota_iva }}</td></tr>
+      <tr><td>Mezisoučet (vč. DPH)</td><td class="r">{{ c.total }}</td></tr>
+      <tr><td>Daň z příjmu (IRPF {{ c.tipo_irpf }} %)</td><td class="r">{{ c.retencion }}</td></tr>
+      <tr class="tot"><td>CELKEM K ÚHRADĚ</td><td class="r">{{ c.liquido }}</td></tr>
+    </table>
+  </div>
 
   <div class="fx-legend">
     {{ c.leyenda }}

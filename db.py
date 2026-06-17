@@ -82,6 +82,7 @@ CREATE TABLE IF NOT EXISTS owners (
     nombre_propiedad  TEXT,
     variabilni_symbol TEXT,
     tipo_id           TEXT NOT NULL DEFAULT 'NIF',
+    iban              TEXT,
     created_at        TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS settings (
@@ -103,6 +104,7 @@ CREATE TABLE IF NOT EXISTS invoices (
     cuota_iva         REAL NOT NULL,
     total             REAL NOT NULL,
     created_at        TEXT NOT NULL,
+    sent_at           TEXT,
     FOREIGN KEY (owner_kod) REFERENCES owners(kod)
 );
 CREATE TABLE IF NOT EXISTS counters (
@@ -125,6 +127,7 @@ _PG_SCHEMA = [
         nombre_propiedad  TEXT,
         variabilni_symbol TEXT,
         tipo_id           TEXT NOT NULL DEFAULT 'NIF',
+        iban              TEXT,
         created_at        TEXT NOT NULL
     )""",
     """CREATE TABLE IF NOT EXISTS settings (
@@ -145,7 +148,8 @@ _PG_SCHEMA = [
         tipo_iva          INTEGER NOT NULL,
         cuota_iva         NUMERIC(12,2) NOT NULL,
         total             NUMERIC(12,2) NOT NULL,
-        created_at        TEXT NOT NULL
+        created_at        TEXT NOT NULL,
+        sent_at           TEXT
     )""",
     """CREATE TABLE IF NOT EXISTS counters (
         owner_kod TEXT NOT NULL,
@@ -155,6 +159,8 @@ _PG_SCHEMA = [
     )""",
     "ALTER TABLE owners ADD COLUMN IF NOT EXISTS variabilni_symbol TEXT",
     "ALTER TABLE owners ADD COLUMN IF NOT EXISTS tipo_id TEXT NOT NULL DEFAULT 'NIF'",
+    "ALTER TABLE owners ADD COLUMN IF NOT EXISTS iban TEXT",
+    "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS sent_at TEXT",
 ]
 
 
@@ -176,6 +182,11 @@ def init_db() -> None:
                 conn.execute("ALTER TABLE owners ADD COLUMN variabilni_symbol TEXT")
             if "tipo_id" not in cols:
                 conn.execute("ALTER TABLE owners ADD COLUMN tipo_id TEXT NOT NULL DEFAULT 'NIF'")
+            if "iban" not in cols:
+                conn.execute("ALTER TABLE owners ADD COLUMN iban TEXT")
+            inv_cols = [r["name"] for r in conn.execute("PRAGMA table_info(invoices)").fetchall()]
+            if "sent_at" not in inv_cols:
+                conn.execute("ALTER TABLE invoices ADD COLUMN sent_at TEXT")
             conn.execute(
                 "INSERT OR IGNORE INTO settings (id, razon, nif, domicilio) "
                 "VALUES (1, 'Caseo', '', '')"
@@ -204,14 +215,15 @@ def get_owner(kod: str):
 
 
 def create_owner(kod, nombre, nif, domicilio, email, nombre_propiedad,
-                 variabilni_symbol, tipo_id="NIF") -> None:
+                 variabilni_symbol, tipo_id="NIF", iban=None) -> None:
     conn = get_conn()
     try:
         _ex(conn,
             "INSERT INTO owners (kod, nombre, nif, domicilio, email, nombre_propiedad, "
-            "variabilni_symbol, tipo_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "variabilni_symbol, tipo_id, iban, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (kod, nombre, nif, domicilio, email or None, nombre_propiedad or None,
-             variabilni_symbol or None, tipo_id,
+             variabilni_symbol or None, tipo_id, iban or None,
              datetime.now().isoformat(timespec="seconds")))
         conn.commit()
     except Exception as exc:
@@ -224,15 +236,15 @@ def create_owner(kod, nombre, nif, domicilio, email, nombre_propiedad,
 
 
 def update_owner(kod, nombre, nif, domicilio, email, nombre_propiedad,
-                 variabilni_symbol, tipo_id="NIF") -> None:
+                 variabilni_symbol, tipo_id="NIF", iban=None) -> None:
     """Aktualizuje fiskální údaje majitele. Kód (kod) se nemění – je klíčem ve fakturách."""
     conn = get_conn()
     try:
         _ex(conn,
             "UPDATE owners SET nombre = ?, nif = ?, domicilio = ?, email = ?, "
-            "nombre_propiedad = ?, variabilni_symbol = ?, tipo_id = ? WHERE kod = ?",
+            "nombre_propiedad = ?, variabilni_symbol = ?, tipo_id = ?, iban = ? WHERE kod = ?",
             (nombre, nif, domicilio, email or None, nombre_propiedad or None,
-             variabilni_symbol or None, tipo_id, kod))
+             variabilni_symbol or None, tipo_id, iban or None, kod))
         conn.commit()
     finally:
         conn.close()
@@ -285,7 +297,7 @@ def get_invoice(numero: str):
             "SELECT i.*, o.nombre AS owner_nombre, o.nif AS owner_nif, "
             "o.domicilio AS owner_domicilio, o.nombre_propiedad AS owner_propiedad, "
             "o.email AS owner_email, o.variabilni_symbol AS owner_vs, "
-            "o.tipo_id AS owner_tipo_id "
+            "o.tipo_id AS owner_tipo_id, o.iban AS owner_iban "
             "FROM invoices i LEFT JOIN owners o ON o.kod = i.owner_kod "
             "WHERE i.numero = ?", (numero,)).fetchone()
     finally:
@@ -453,5 +465,16 @@ def rename_invoice(old_numero: str, new_numero: str) -> None:
     except Exception:
         conn.rollback()
         raise
+    finally:
+        conn.close()
+
+
+def mark_invoice_sent(numero: str) -> None:
+    """Zaznamená čas odeslání faktury e-mailem (sloupec sent_at)."""
+    conn = get_conn()
+    try:
+        _ex(conn, "UPDATE invoices SET sent_at = ? WHERE numero = ?",
+            (datetime.now().isoformat(timespec="seconds"), numero))
+        conn.commit()
     finally:
         conn.close()

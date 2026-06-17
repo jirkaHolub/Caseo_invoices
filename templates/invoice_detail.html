@@ -5,6 +5,12 @@
   <h2>Faktura {{ inv.numero }}</h2>
   <div class="row-actions">
     <a href="/facturas/{{ inv.numero }}/pdf" role="button" target="_blank">Stáhnout PDF</a>
+    <form method="post" action="/facturas/{{ inv.numero }}/email"
+          onsubmit="return confirm('Odeslat fakturu {{ inv.numero }} e-mailem majiteli{{ ' (' + c.emisor_email + ')' if c.emisor_email else '' }}?');">
+      <button type="submit" {{ 'disabled' if (not mail_ready or not c.emisor_email) else '' }}>
+        {{ 'Odeslat znovu' if inv.sent_at else 'Odeslat e-mailem' }}
+      </button>
+    </form>
     <a href="/facturas" role="button" class="outline secondary">Zpět do registru</a>
     <form method="post" action="/facturas/{{ inv.numero }}/delete"
           onsubmit="return confirm('Opravdu smazat fakturu {{ inv.numero }}? Tato akce je nevratná a číslo se znovu nepřidělí.');">
@@ -12,6 +18,14 @@
     </form>
   </div>
 </div>
+
+{% if not mail_ready %}
+<p class="muted mail-status">✉︎ E-maily nejsou nastavené – chybí <code>RESEND_API_KEY</code> ve Vercel env.</p>
+{% elif not c.emisor_email %}
+<p class="muted mail-status">✉︎ Majitel nemá vyplněný e-mail – doplň ho na kartě majitele.</p>
+{% elif inv.sent_at %}
+<p class="muted mail-status">✉︎ Naposledy odesláno {{ inv.sent_at[:16].replace('T', ' ') }} na {{ c.emisor_email }}.</p>
+{% endif %}
 
 <form method="post" action="/facturas/{{ inv.numero }}/numero" class="num-edit">
   <label for="nuevo_numero">Číslo faktury</label>

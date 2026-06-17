@@ -29,6 +29,8 @@ except Exception:
 
 import db
 import domain
+import mailer
+import qr
 from pdf import render_pdf, ACCENT
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -94,6 +96,10 @@ def settings_complete(s) -> bool:
 def build_ctx(inv: sqlite3.Row, s: sqlite3.Row) -> dict:
     """Sestaví slovník s formátovanými hodnotami pro PDF / náhled faktury."""
     year, _, month = (inv["mes_najmu"] or "-").partition("-")
+    liquido = domain.compute_liquido(inv["total"], inv["base_imponible"])
+    # QR platba (SPAYD): IBAN majitele, částka k úhradě, VS a číslo faktury.
+    qr_payload = qr.spayd_payload(inv["owner_iban"], liquido, inv["owner_vs"],
+                                  "Faktura " + inv["numero"])
     return {
         "numero": inv["numero"],
         "fecha_expedicion": domain.format_date(inv["fecha_expedicion"]),
@@ -116,7 +122,9 @@ def build_ctx(inv: sqlite3.Row, s: sqlite3.Row) -> dict:
         "total": domain.format_eur(inv["total"]),
         "tipo_irpf": domain.TIPO_IRPF,
         "retencion": domain.format_eur(-domain.compute_retencion(inv["base_imponible"])),
-        "liquido": domain.format_eur(domain.compute_liquido(inv["total"], inv["base_imponible"])),
+        "liquido": domain.format_eur(liquido),
+        "qr_payload": qr_payload or "",
+        "qr_svg": qr.qr_svg(qr_payload) if qr_payload else "",
         "leyenda": domain.LEYENDA,
         "accent": ACCENT,
     }
@@ -160,6 +168,7 @@ def owners_create(
     nombre_propiedad: str = Form(""),
     variabilni_symbol: str = Form(""),
     tipo_id: str = Form("NIF"),
+    iban: str = Form(""),
 ):
     kod = kod.strip().upper()
     if not kod:
@@ -167,7 +176,7 @@ def owners_create(
     try:
         db.create_owner(kod, nombre.strip(), nif.strip(), domicilio.strip(),
                         email.strip(), nombre_propiedad.strip(), variabilni_symbol.strip(),
-                        domain.normalize_tipo_id(tipo_id))
+                        domain.normalize_tipo_id(tipo_id), iban.replace(" ", "").upper())
     except db.DuplicateKod:
         return RedirectResponse(
             "/propietarios?err=Majitel+s+kódem+{}+už+existuje.".format(kod), status_code=303)
@@ -184,10 +193,11 @@ def owners_update(
     nombre_propiedad: str = Form(""),
     variabilni_symbol: str = Form(""),
     tipo_id: str = Form("NIF"),
+    iban: str = Form(""),
 ):
     db.update_owner(kod, nombre.strip(), nif.strip(), domicilio.strip(),
                     email.strip(), nombre_propiedad.strip(), variabilni_symbol.strip(),
-                    domain.normalize_tipo_id(tipo_id))
+                    domain.normalize_tipo_id(tipo_id), iban.replace(" ", "").upper())
     return RedirectResponse("/propietarios?msg=Majitel+{}+upraven.".format(kod), status_code=303)
 
 
@@ -354,7 +364,7 @@ def invoice_detail(request: Request, numero: str, msg: str = "", err: str = ""):
     s = db.get_settings()
     ctx = build_ctx(inv, s)
     return render("invoice_detail.html", request, active="registry", inv=inv, c=ctx,
-                  msg=msg, err=err)
+                  msg=msg, err=err, mail_ready=mailer.is_configured())
 
 
 @app.get("/facturas/{numero}/pdf")
@@ -389,6 +399,36 @@ def invoice_rename(numero: str, nuevo_numero: str = Form(...)):
         "/facturas/{}?msg={}".format(quote(target, safe=""),
                                      quote_plus("Číslo faktury změněno.")),
         status_code=303)
+
+
+@app.post("/facturas/{numero}/email")
+def invoice_email(numero: str):
+    """Odešle fakturu e-mailem majiteli (Resend, PDF v příloze)."""
+    inv = db.get_invoice(numero)
+    if inv is None:
+        return RedirectResponse("/facturas?err=" + quote_plus("Faktura nenalezena."),
+                                status_code=303)
+
+    def back(param: str, text: str):
+        return RedirectResponse(
+            "/facturas/{}?{}={}".format(quote(numero, safe=""), param, quote_plus(text)),
+            status_code=303)
+
+    to = (inv["owner_email"] or "").strip()
+    if not to:
+        return back("err", "Majitel nemá vyplněný e-mail – doplň ho na kartě majitele.")
+    pdf = _pdf_bytes(numero)
+    if pdf is None:
+        return back("err", "Nepodařilo se vygenerovat PDF faktury.")
+    html = templates.env.get_template("email_invoice.html").render(
+        c=build_ctx(inv, db.get_settings()))
+    try:
+        mailer.send_email(to, "Faktura {}".format(numero), html,
+                          attachments=[{"filename": numero + ".pdf", "content": pdf}])
+    except mailer.MailError as e:
+        return back("err", "Odeslání selhalo: " + str(e))
+    db.mark_invoice_sent(numero)
+    return back("msg", "Faktura odeslána na " + to)
 
 
 # ============================================================ CSV export

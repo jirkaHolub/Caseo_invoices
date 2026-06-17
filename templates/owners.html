@@ -75,6 +75,10 @@
                    inputmode="numeric" placeholder="napr. 20260001">
           </label>
         </div>
+        <label>IBAN <small class="muted">(volitelně – vytvoří QR platbu na faktuře)</small>
+          <input name="iban" value="{{ edit_owner.iban or '' if edit_owner else '' }}"
+                 placeholder="CZ65 0800 0000 1920 0014 5399" style="text-transform:uppercase">
+        </label>
         <div class="form-actions">
           <button type="submit">{{ "Uložit změny" if edit_owner else "Přidat majitele" }}</button>
           {% if edit_owner %}<a href="/propietarios" role="button" class="secondary outline">Zrušit</a>{% endif %}

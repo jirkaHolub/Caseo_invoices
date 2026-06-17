@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS owners (
     nombre_propiedad  TEXT,
     variabilni_symbol TEXT,
     tipo_id           TEXT NOT NULL DEFAULT 'NIF',
+    iban              TEXT,
     created_at        TEXT NOT NULL
 );
 
@@ -35,7 +36,8 @@ CREATE TABLE IF NOT EXISTS invoices (
     tipo_iva          INTEGER NOT NULL,
     cuota_iva         NUMERIC(12,2) NOT NULL,
     total             NUMERIC(12,2) NOT NULL,
-    created_at        TEXT NOT NULL
+    created_at        TEXT NOT NULL,
+    sent_at           TEXT
 );
 
 CREATE TABLE IF NOT EXISTS counters (

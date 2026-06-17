@@ -65,6 +65,18 @@ def _try_weasyprint(html: str) -> Optional[bytes]:
         return None
 
 
+def _qr_drawing(payload: str, size):
+    """QR kód (SPAYD) jako reportlab Drawing – nativní, bez Pillow."""
+    from reportlab.graphics.barcode.qr import QrCodeWidget
+    from reportlab.graphics.shapes import Drawing
+    widget = QrCodeWidget(payload)
+    widget.barLevel = "M"
+    x0, y0, x1, y1 = widget.getBounds()
+    d = Drawing(size, size, transform=[size / (x1 - x0), 0, 0, size / (y1 - y0), 0, 0])
+    d.add(widget)
+    return d
+
+
 def _reportlab(ctx: dict, target) -> int:
     """Vykreslí fakturu přes reportlab. Vrací počet stránek (cíl: 1)."""
     from reportlab.lib.pagesizes import A4
@@ -220,7 +232,20 @@ def _reportlab(ctx: dict, target) -> int:
         ("TOPPADDING", (0, 4), (-1, 4), 6), ("BOTTOMPADDING", (0, 4), (-1, 4), 6),
         ("LEFTPADDING", (0, 0), (-1, -1), 10), ("RIGHTPADDING", (-1, 0), (-1, -1), 10),
     ]))
-    story.append(resumen)
+    # QR platba vlevo, souhrn vpravo (pokud má majitel IBAN).
+    if ctx.get("qr_payload"):
+        qr_cell = [_qr_drawing(ctx["qr_payload"], 30 * mm),
+                   P("QR platba — {}".format(ctx["liquido"]), small)]
+        pay = Table([[qr_cell, resumen]], colWidths=[W * 0.38, W * 0.62])
+        pay.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("ALIGN", (0, 0), (0, 0), "CENTER"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+            ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+        ]))
+        story.append(pay)
+    else:
+        story.append(resumen)
     story.append(Spacer(1, 16))
 
     # --- Patička: legenda ---

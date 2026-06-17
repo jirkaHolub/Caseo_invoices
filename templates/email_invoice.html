@@ -1,0 +1,13 @@
+<div style="font-family:Helvetica,Arial,sans-serif;font-size:14px;color:#1d1d1d;line-height:1.5;max-width:560px">
+  <p>Dobrý den,</p>
+  <p>v příloze Vám zasíláme fakturu <strong>č. {{ c.numero }}</strong> za období
+     <strong>{{ c.periodo }}</strong> (samofakturace).</p>
+  <table style="border-collapse:collapse;margin:14px 0">
+    <tr><td style="padding:3px 16px 3px 0;color:#555">Částka k úhradě</td>
+        <td style="padding:3px 0;font-weight:700;color:{{ c.accent }}">{{ c.liquido }}</td></tr>
+    <tr><td style="padding:3px 16px 3px 0;color:#555">Datum splatnosti</td>
+        <td style="padding:3px 0">{{ c.fecha_vencimiento }}</td></tr>
+  </table>
+  <p style="color:#555;font-size:12px">{{ c.leyenda }}</p>
+  <p>S pozdravem,<br>{{ c.dest_razon }}</p>
+</div>
