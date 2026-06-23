@@ -152,12 +152,31 @@ def home():
 
 # ============================================================ majitelé
 
+def _parse_property_id(value: str):
+    """Form hodnota property_id → int nebo None ('' = bez nemovitosti)."""
+    value = (value or "").strip()
+    return int(value) if value.isdigit() else None
+
+
+def _selected_property_id(owner_kod: str):
+    """Hodnota výběru ve formuláři faktury: 'prop:<id>' → id nemovitosti, jinak None."""
+    if owner_kod and owner_kod.startswith("prop:"):
+        tail = owner_kod[len("prop:"):]
+        if tail.isdigit():
+            return int(tail)
+    return None
+
+
 @app.get("/propietarios", response_class=HTMLResponse)
-def owners_page(request: Request, msg: str = "", err: str = "", edit: str = ""):
+def owners_page(request: Request, msg: str = "", err: str = "", edit: str = "",
+                edit_prop: str = ""):
     owners = db.list_owners()
+    properties = db.list_properties()
     edit_owner = db.get_owner(edit) if edit else None
+    edit_property = db.get_property(int(edit_prop)) if edit_prop.isdigit() else None
     return render("owners.html", request, active="owners", owners=owners,
-                  edit_owner=edit_owner, msg=msg, err=err)
+                  properties=properties, edit_owner=edit_owner,
+                  edit_property=edit_property, msg=msg, err=err)
 
 
 @app.post("/propietarios")
@@ -171,6 +190,7 @@ def owners_create(
     variabilni_symbol: str = Form(""),
     tipo_id: str = Form("NIF"),
     iban: str = Form(""),
+    property_id: str = Form(""),
 ):
     kod = kod.strip().upper()
     if not kod:
@@ -178,7 +198,8 @@ def owners_create(
     try:
         db.create_owner(kod, nombre.strip(), nif.strip(), domicilio.strip(),
                         email.strip(), nombre_propiedad.strip(), variabilni_symbol.strip(),
-                        domain.normalize_tipo_id(tipo_id), iban.replace(" ", "").upper())
+                        domain.normalize_tipo_id(tipo_id), iban.replace(" ", "").upper(),
+                        _parse_property_id(property_id))
     except db.DuplicateKod:
         return RedirectResponse(
             "/propietarios?err=Majitel+s+kódem+{}+už+existuje.".format(kod), status_code=303)
@@ -196,10 +217,12 @@ def owners_update(
     variabilni_symbol: str = Form(""),
     tipo_id: str = Form("NIF"),
     iban: str = Form(""),
+    property_id: str = Form(""),
 ):
     db.update_owner(kod, nombre.strip(), nif.strip(), domicilio.strip(),
                     email.strip(), nombre_propiedad.strip(), variabilni_symbol.strip(),
-                    domain.normalize_tipo_id(tipo_id), iban.replace(" ", "").upper())
+                    domain.normalize_tipo_id(tipo_id), iban.replace(" ", "").upper(),
+                    _parse_property_id(property_id))
     return RedirectResponse("/propietarios?msg=Majitel+{}+upraven.".format(kod), status_code=303)
 
 
@@ -213,62 +236,135 @@ def owners_delete(kod: str):
     return RedirectResponse("/propietarios?msg=Majitel+{}+smazán.".format(kod), status_code=303)
 
 
+# ============================================================ nemovitosti (společné karty)
+
+@app.post("/propiedades")
+def property_create(
+    nombre: str = Form(...),
+    iban: str = Form(""),
+    variabilni_symbol: str = Form(""),
+):
+    nombre = nombre.strip()
+    if not nombre:
+        return RedirectResponse("/propietarios?err=Název+nemovitosti+je+povinný.",
+                                status_code=303)
+    db.create_property(nombre, iban.replace(" ", "").upper(), variabilni_symbol.strip())
+    return RedirectResponse(
+        "/propietarios?msg=Nemovitost+„{}\"+uložena.".format(nombre), status_code=303)
+
+
+@app.post("/propiedades/{prop_id}/actualizar")
+def property_update(
+    prop_id: int,
+    nombre: str = Form(...),
+    iban: str = Form(""),
+    variabilni_symbol: str = Form(""),
+):
+    db.update_property(prop_id, nombre.strip(), iban.replace(" ", "").upper(),
+                       variabilni_symbol.strip())
+    return RedirectResponse("/propietarios?msg=Nemovitost+upravena.", status_code=303)
+
+
+@app.post("/propiedades/{prop_id}/eliminar")
+def property_delete(prop_id: int):
+    db.delete_property(prop_id)
+    return RedirectResponse(
+        "/propietarios?msg=Nemovitost+smazána+(majitelé+odpojeni).", status_code=303)
+
+
 # ============================================================ nová faktura
 
 @app.get("/facturas/nueva", response_class=HTMLResponse)
 def invoice_new(request: Request, owner: str = ""):
     owners = db.list_owners()
+    properties = db.list_properties()
     s = db.get_settings()
     hoy = date.today()
     mes_default = "{:04d}-{:02d}".format(hoy.year, hoy.month)
     return render("new_invoice.html", request, active="new", owners=owners,
-                  settings_ok=settings_complete(s), mes_default=mes_default,
-                  owner_selected=owner)
+                  properties=properties, settings_ok=settings_complete(s),
+                  mes_default=mes_default, owner_selected=owner)
 
 
 @app.post("/api/preview", response_class=JSONResponse)
 def invoice_preview(
     owner_kod: str = Form(...),
     mes: str = Form(...),
-    total: str = Form(...),
+    total: str = Form(""),
     concepto: str = Form(""),
 ):
-    owner = db.get_owner(owner_kod)
-    if owner is None:
-        return JSONResponse({"ok": False, "error": "Vyberte majitele."})
     try:
-        base, cuota, total_d = domain.compute_amounts(total)
+        total_d = domain.parse_amount(total)
         exp, ven = domain.default_dates(mes)
     except ValueError as e:
         return JSONResponse({"ok": False, "error": str(e)})
 
     anio = exp.year
-    seq = db.peek_next_seq(owner_kod, anio)
-    numero = domain.format_numero(owner_kod, anio, seq)
-    concepto_final = concepto.strip() or domain.default_concepto(
-        owner["nombre_propiedad"], mes)
-    dup = db.invoice_exists_for_month(owner_kod, mes)
     year, _, month = mes.partition("-")
-
-    return JSONResponse({
+    resp = {
         "ok": True,
-        "numero": numero,
-        "base": domain.format_eur(base),
-        "cuota": domain.format_eur(cuota),
-        "total": domain.format_eur(total_d),
-        "tipo_iva": domain.TIPO_IVA,
-        "tipo_irpf": domain.TIPO_IRPF,
-        "retencion": domain.format_eur(-domain.compute_retencion(base)),
-        "liquido": domain.format_eur(domain.compute_liquido(total_d, base)),
         "fecha_expedicion": exp.isoformat(),
         "fecha_vencimiento": ven.isoformat(),
         "fecha_expedicion_es": domain.format_date(exp),
         "fecha_vencimiento_es": domain.format_date(ven),
         "periodo": "{}/{}".format(month, year),
-        "concepto": concepto_final,
+        "tipo_iva": domain.TIPO_IVA,
+        "tipo_irpf": domain.TIPO_IRPF,
+    }
+
+    # Režim nemovitosti (spolumajitelství): total se rozdělí mezi spolumajitele,
+    # každý dostane vlastní fakturu (náhled obou).
+    prop_id = _selected_property_id(owner_kod)
+    if prop_id is not None:
+        prop = db.get_property(prop_id)
+        co_owners = db.owners_for_property(prop_id) if prop else []
+        if not co_owners:
+            return JSONResponse({"ok": False, "error": "Nemovitost nemá žádné spolumajitele."})
+        shares = domain.split_amount(total_d, len(co_owners))
+        splits, dup = [], None
+        for owner, share in zip(co_owners, shares):
+            base, cuota, total_part = domain.compute_amounts(share)
+            seq = db.peek_next_seq(owner["kod"], anio)
+            d = db.invoice_exists_for_month(owner["kod"], mes)
+            if d and not dup:
+                dup = d["numero"]
+            splits.append({
+                "kod": owner["kod"], "nombre": owner["nombre"],
+                "numero": domain.format_numero(owner["kod"], anio, seq),
+                "total": domain.format_eur(total_part),
+                "retencion": domain.format_eur(-domain.compute_retencion(base)),
+                "liquido": domain.format_eur(domain.compute_liquido(total_part, base)),
+            })
+        resp.update({
+            "is_property": True,
+            "property_nombre": prop["nombre"],
+            "total": domain.format_eur(total_d),
+            "concepto": concepto.strip() or domain.default_concepto(prop["nombre"], mes),
+            "splits": splits,
+            "duplicate": dup,
+        })
+        return JSONResponse(resp)
+
+    # Jednotlivý majitel (původní chování).
+    owner = db.get_owner(owner_kod)
+    if owner is None:
+        return JSONResponse({"ok": False, "error": "Vyberte majitele."})
+    base, cuota, total_d = domain.compute_amounts(total_d)
+    seq = db.peek_next_seq(owner_kod, anio)
+    dup = db.invoice_exists_for_month(owner_kod, mes)
+    resp.update({
+        "is_property": False,
+        "numero": domain.format_numero(owner_kod, anio, seq),
+        "base": domain.format_eur(base),
+        "cuota": domain.format_eur(cuota),
+        "total": domain.format_eur(total_d),
+        "retencion": domain.format_eur(-domain.compute_retencion(base)),
+        "liquido": domain.format_eur(domain.compute_liquido(total_d, base)),
+        "concepto": concepto.strip() or domain.default_concepto(owner["nombre_propiedad"], mes),
         "variabilni_symbol": owner["variabilni_symbol"] or "",
         "duplicate": (dup["numero"] if dup else None),
     })
+    return JSONResponse(resp)
 
 
 @app.post("/facturas")
@@ -282,16 +378,12 @@ def invoice_create(
     fecha_vencimiento: str = Form(""),
     confirmar: str = Form(""),
 ):
-    owner = db.get_owner(owner_kod)
-    if owner is None:
-        return RedirectResponse("/facturas/nueva?", status_code=303)
-
     s = db.get_settings()
     if not settings_complete(s):
         return _new_with_error(request, owner_kod, mes, total, concepto,
                                "Nejdřív vyplňte fiskální údaje Caseo v Nastavení.")
     try:
-        base, cuota, total_d = domain.compute_amounts(total)
+        total_d = domain.parse_amount(total)
         domain.parse_mes(mes)
         exp_def, ven_def = domain.default_dates(mes)
     except ValueError as e:
@@ -299,6 +391,17 @@ def invoice_create(
 
     exp = _parse_iso(fecha_expedicion) or exp_def
     ven = _parse_iso(fecha_vencimiento) or ven_def
+    anio = exp.year
+
+    # Režim nemovitosti: jeden vstup → 2 (či více) faktur rozdělených mezi spolumajitele.
+    prop_id = _selected_property_id(owner_kod)
+    if prop_id is not None:
+        return _create_property_invoices(request, prop_id, owner_kod, mes, total,
+                                         total_d, concepto, exp, ven, anio, confirmar)
+
+    owner = db.get_owner(owner_kod)
+    if owner is None:
+        return RedirectResponse("/facturas/nueva?", status_code=303)
 
     # Kontrola duplicity – generuj až po potvrzení.
     dup = db.invoice_exists_for_month(owner_kod, mes)
@@ -309,8 +412,8 @@ def invoice_create(
             "Potvrďte vygenerování další.".format(mes, dup["numero"]),
             warn_duplicate=dup["numero"])
 
+    base, cuota, total_d = domain.compute_amounts(total_d)
     concepto_final = concepto.strip() or domain.default_concepto(owner["nombre_propiedad"], mes)
-    anio = exp.year
 
     numero = db.create_invoice_atomic(
         owner_kod=owner_kod, anio=anio,
@@ -323,12 +426,50 @@ def invoice_create(
         "/facturas/{}?msg=Faktura+vygenerována.".format(numero), status_code=303)
 
 
+def _create_property_invoices(request, prop_id, owner_kod, mes, total, total_d,
+                              concepto, exp, ven, anio, confirmar):
+    """Vystaví faktury pro všechny spolumajitele nemovitosti (rozdělení dle split_amount)."""
+    prop = db.get_property(prop_id)
+    co_owners = db.owners_for_property(prop_id) if prop else []
+    if not co_owners:
+        return _new_with_error(request, owner_kod, mes, total, concepto,
+                               "Nemovitost nemá žádné spolumajitele – přiřaďte je na kartě majitele.")
+
+    # Duplicita u kteréhokoli spolumajitele → vyžádej potvrzení.
+    if confirmar != "1":
+        for o in co_owners:
+            d = db.invoice_exists_for_month(o["kod"], mes)
+            if d:
+                return _new_with_error(
+                    request, owner_kod, mes, total, concepto,
+                    "Pro spolumajitele {} a měsíc {} už existuje faktura {}. "
+                    "Potvrďte vygenerování dalších.".format(o["kod"], mes, d["numero"]),
+                    warn_duplicate=d["numero"])
+
+    concepto_final = concepto.strip() or domain.default_concepto(prop["nombre"], mes)
+    shares = domain.split_amount(total_d, len(co_owners))
+    items = []
+    for o, share in zip(co_owners, shares):
+        base, cuota, total_part = domain.compute_amounts(share)
+        items.append({
+            "owner_kod": o["kod"], "anio": anio,
+            "fecha_expedicion": exp.isoformat(), "fecha_vencimiento": ven.isoformat(),
+            "mes_najmu": mes, "concepto": concepto_final,
+            "base_imponible": float(base), "tipo_iva": domain.TIPO_IVA,
+            "cuota_iva": float(cuota), "total": float(total_part),
+        })
+    numeros = db.create_invoices_atomic(items)
+    msg = "Vystaveny {} faktury: {}".format(len(numeros), ", ".join(numeros))
+    return RedirectResponse("/facturas?msg=" + quote_plus(msg), status_code=303)
+
+
 def _new_with_error(request, owner_kod, mes, total, concepto, err,
                     warn_duplicate: str = "") -> HTMLResponse:
     owners = db.list_owners()
+    properties = db.list_properties()
     s = db.get_settings()
     return render("new_invoice.html", request, active="new", owners=owners,
-                  settings_ok=settings_complete(s), mes_default=mes,
+                  properties=properties, settings_ok=settings_complete(s), mes_default=mes,
                   owner_selected=owner_kod, err=err, warn_duplicate=warn_duplicate,
                   prev_total=total, prev_concepto=concepto)
 

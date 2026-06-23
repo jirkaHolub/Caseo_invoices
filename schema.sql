@@ -3,6 +3,17 @@
 -- (Aplikace se to snaží vytvořit i sama při startu, ale na serverless je
 --  spolehlivější mít schéma vytvořené tímto skriptem předem.)
 
+-- Nemovitost = "společná karta" pro spolumajitelství. Drží sdílený účet (IBAN),
+-- na který míří faktury všech připojených spolumajitelů. Samostatní majitelé
+-- (property_id NULL) fungují beze změny – IBAN si nesou na své kartě.
+CREATE TABLE IF NOT EXISTS properties (
+    id                SERIAL PRIMARY KEY,
+    nombre            TEXT NOT NULL,
+    iban              TEXT,
+    variabilni_symbol TEXT,
+    created_at        TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS owners (
     id                SERIAL PRIMARY KEY,
     kod               TEXT NOT NULL UNIQUE,
@@ -14,6 +25,7 @@ CREATE TABLE IF NOT EXISTS owners (
     variabilni_symbol TEXT,
     tipo_id           TEXT NOT NULL DEFAULT 'NIF',
     iban              TEXT,
+    property_id       INTEGER REFERENCES properties(id),
     created_at        TEXT NOT NULL
 );
 

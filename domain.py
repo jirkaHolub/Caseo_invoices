@@ -57,6 +57,19 @@ def compute_amounts(total) -> Tuple[Decimal, Decimal, Decimal]:
     return base, cuota, total_d
 
 
+def split_amount(total, parts: int = 2) -> list:
+    """Rozdělí BRUTTO částku na `parts` rovnoměrných dílů (na cent přesně).
+
+    Součet dílů == total na cent; případný lichý cent se srovná na prvním dílu,
+    takže se nic neztratí (např. 100,01 € na 2 → [50,00; 50,01])."""
+    total_d = total if isinstance(total, Decimal) else parse_amount(total)
+    total_d = _q(total_d)
+    base_part = _q(total_d / Decimal(parts))
+    shares = [base_part] * parts
+    shares[0] = total_d - base_part * (parts - 1)  # dorovnání na přesný součet
+    return shares
+
+
 def compute_retencion(base) -> Decimal:
     """Srážka daně z příjmu (retención IRPF) = base × 19 %."""
     base_d = base if isinstance(base, Decimal) else Decimal(str(base))

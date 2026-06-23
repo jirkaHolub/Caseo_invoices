@@ -72,6 +72,13 @@ def _ex(conn, sql, params=()):
 # ---------------------------------------------------------------- schéma
 
 _SQLITE_SCHEMA = """
+CREATE TABLE IF NOT EXISTS properties (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre            TEXT NOT NULL,
+    iban              TEXT,
+    variabilni_symbol TEXT,
+    created_at        TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS owners (
     id                INTEGER PRIMARY KEY AUTOINCREMENT,
     kod               TEXT NOT NULL UNIQUE,
@@ -83,6 +90,7 @@ CREATE TABLE IF NOT EXISTS owners (
     variabilni_symbol TEXT,
     tipo_id           TEXT NOT NULL DEFAULT 'NIF',
     iban              TEXT,
+    property_id       INTEGER REFERENCES properties(id),
     created_at        TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS settings (
@@ -117,6 +125,13 @@ CREATE TABLE IF NOT EXISTS counters (
 
 # Stejné schéma pro PostgreSQL (viz též schema.sql pro ruční spuštění v Supabase).
 _PG_SCHEMA = [
+    """CREATE TABLE IF NOT EXISTS properties (
+        id                SERIAL PRIMARY KEY,
+        nombre            TEXT NOT NULL,
+        iban              TEXT,
+        variabilni_symbol TEXT,
+        created_at        TEXT NOT NULL
+    )""",
     """CREATE TABLE IF NOT EXISTS owners (
         id                SERIAL PRIMARY KEY,
         kod               TEXT NOT NULL UNIQUE,
@@ -128,6 +143,7 @@ _PG_SCHEMA = [
         variabilni_symbol TEXT,
         tipo_id           TEXT NOT NULL DEFAULT 'NIF',
         iban              TEXT,
+        property_id       INTEGER REFERENCES properties(id),
         created_at        TEXT NOT NULL
     )""",
     """CREATE TABLE IF NOT EXISTS settings (
@@ -160,6 +176,7 @@ _PG_SCHEMA = [
     "ALTER TABLE owners ADD COLUMN IF NOT EXISTS variabilni_symbol TEXT",
     "ALTER TABLE owners ADD COLUMN IF NOT EXISTS tipo_id TEXT NOT NULL DEFAULT 'NIF'",
     "ALTER TABLE owners ADD COLUMN IF NOT EXISTS iban TEXT",
+    "ALTER TABLE owners ADD COLUMN IF NOT EXISTS property_id INTEGER REFERENCES properties(id)",
     "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS sent_at TEXT",
 ]
 
@@ -184,6 +201,9 @@ def init_db() -> None:
                 conn.execute("ALTER TABLE owners ADD COLUMN tipo_id TEXT NOT NULL DEFAULT 'NIF'")
             if "iban" not in cols:
                 conn.execute("ALTER TABLE owners ADD COLUMN iban TEXT")
+            if "property_id" not in cols:
+                conn.execute("ALTER TABLE owners ADD COLUMN property_id INTEGER "
+                             "REFERENCES properties(id)")
             inv_cols = [r["name"] for r in conn.execute("PRAGMA table_info(invoices)").fetchall()]
             if "sent_at" not in inv_cols:
                 conn.execute("ALTER TABLE invoices ADD COLUMN sent_at TEXT")
@@ -201,7 +221,10 @@ def init_db() -> None:
 def list_owners() -> list:
     conn = get_conn()
     try:
-        return _ex(conn, "SELECT * FROM owners ORDER BY kod").fetchall()
+        return _ex(conn,
+            "SELECT o.*, p.nombre AS property_nombre, p.iban AS property_iban "
+            "FROM owners o LEFT JOIN properties p ON p.id = o.property_id "
+            "ORDER BY o.kod").fetchall()
     finally:
         conn.close()
 
@@ -215,15 +238,15 @@ def get_owner(kod: str):
 
 
 def create_owner(kod, nombre, nif, domicilio, email, nombre_propiedad,
-                 variabilni_symbol, tipo_id="NIF", iban=None) -> None:
+                 variabilni_symbol, tipo_id="NIF", iban=None, property_id=None) -> None:
     conn = get_conn()
     try:
         _ex(conn,
             "INSERT INTO owners (kod, nombre, nif, domicilio, email, nombre_propiedad, "
-            "variabilni_symbol, tipo_id, iban, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "variabilni_symbol, tipo_id, iban, property_id, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (kod, nombre, nif, domicilio, email or None, nombre_propiedad or None,
-             variabilni_symbol or None, tipo_id, iban or None,
+             variabilni_symbol or None, tipo_id, iban or None, property_id,
              datetime.now().isoformat(timespec="seconds")))
         conn.commit()
     except Exception as exc:
@@ -236,15 +259,16 @@ def create_owner(kod, nombre, nif, domicilio, email, nombre_propiedad,
 
 
 def update_owner(kod, nombre, nif, domicilio, email, nombre_propiedad,
-                 variabilni_symbol, tipo_id="NIF", iban=None) -> None:
+                 variabilni_symbol, tipo_id="NIF", iban=None, property_id=None) -> None:
     """Aktualizuje fiskální údaje majitele. Kód (kod) se nemění – je klíčem ve fakturách."""
     conn = get_conn()
     try:
         _ex(conn,
             "UPDATE owners SET nombre = ?, nif = ?, domicilio = ?, email = ?, "
-            "nombre_propiedad = ?, variabilni_symbol = ?, tipo_id = ?, iban = ? WHERE kod = ?",
+            "nombre_propiedad = ?, variabilni_symbol = ?, tipo_id = ?, iban = ?, "
+            "property_id = ? WHERE kod = ?",
             (nombre, nif, domicilio, email or None, nombre_propiedad or None,
-             variabilni_symbol or None, tipo_id, iban or None, kod))
+             variabilni_symbol or None, tipo_id, iban or None, property_id, kod))
         conn.commit()
     finally:
         conn.close()
@@ -264,6 +288,81 @@ def owner_invoice_count(kod: str) -> int:
     try:
         row = _ex(conn, "SELECT COUNT(*) AS c FROM invoices WHERE owner_kod = ?", (kod,)).fetchone()
         return row["c"]
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------- nemovitosti
+
+def list_properties() -> list:
+    """Nemovitosti (společné karty) i s počtem připojených spolumajitelů."""
+    conn = get_conn()
+    try:
+        return _ex(conn,
+            "SELECT p.*, (SELECT COUNT(*) FROM owners o WHERE o.property_id = p.id) "
+            "AS owner_count FROM properties p ORDER BY p.nombre").fetchall()
+    finally:
+        conn.close()
+
+
+def get_property(prop_id):
+    conn = get_conn()
+    try:
+        return _ex(conn, "SELECT * FROM properties WHERE id = ?", (prop_id,)).fetchone()
+    finally:
+        conn.close()
+
+
+def owners_for_property(prop_id) -> list:
+    """Spolumajitelé připojení k nemovitosti (pořadí dle kódu = pořadí faktur)."""
+    conn = get_conn()
+    try:
+        return _ex(conn, "SELECT * FROM owners WHERE property_id = ? ORDER BY kod",
+                   (prop_id,)).fetchall()
+    finally:
+        conn.close()
+
+
+def create_property(nombre, iban=None, variabilni_symbol=None) -> int:
+    conn = get_conn()
+    try:
+        created = datetime.now().isoformat(timespec="seconds")
+        if USE_PG:
+            row = _ex(conn,
+                "INSERT INTO properties (nombre, iban, variabilni_symbol, created_at) "
+                "VALUES (?, ?, ?, ?) RETURNING id",
+                (nombre, iban or None, variabilni_symbol or None, created)).fetchone()
+            new_id = row["id"]
+        else:
+            cur = _ex(conn,
+                "INSERT INTO properties (nombre, iban, variabilni_symbol, created_at) "
+                "VALUES (?, ?, ?, ?)",
+                (nombre, iban or None, variabilni_symbol or None, created))
+            new_id = cur.lastrowid
+        conn.commit()
+        return new_id
+    finally:
+        conn.close()
+
+
+def update_property(prop_id, nombre, iban=None, variabilni_symbol=None) -> None:
+    conn = get_conn()
+    try:
+        _ex(conn,
+            "UPDATE properties SET nombre = ?, iban = ?, variabilni_symbol = ? WHERE id = ?",
+            (nombre, iban or None, variabilni_symbol or None, prop_id))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def delete_property(prop_id) -> None:
+    """Smaže nemovitost. Připojené majitele nejdřív odpojí (property_id → NULL)."""
+    conn = get_conn()
+    try:
+        _ex(conn, "UPDATE owners SET property_id = NULL WHERE property_id = ?", (prop_id,))
+        _ex(conn, "DELETE FROM properties WHERE id = ?", (prop_id,))
+        conn.commit()
     finally:
         conn.close()
 
@@ -293,12 +392,17 @@ def update_settings(razon, nif, domicilio) -> None:
 def get_invoice(numero: str):
     conn = get_conn()
     try:
+        # IBAN a (jako fallback) název nemovitosti se berou ze společné karty
+        # nemovitosti, pokud k ní majitel patří; jinak z karty majitele.
         return _ex(conn,
             "SELECT i.*, o.nombre AS owner_nombre, o.nif AS owner_nif, "
-            "o.domicilio AS owner_domicilio, o.nombre_propiedad AS owner_propiedad, "
-            "o.email AS owner_email, o.variabilni_symbol AS owner_vs, "
-            "o.tipo_id AS owner_tipo_id, o.iban AS owner_iban "
+            "o.domicilio AS owner_domicilio, "
+            "COALESCE(NULLIF(o.nombre_propiedad, ''), p.nombre) AS owner_propiedad, "
+            "o.email AS owner_email, "
+            "COALESCE(NULLIF(o.variabilni_symbol, ''), p.variabilni_symbol) AS owner_vs, "
+            "o.tipo_id AS owner_tipo_id, COALESCE(p.iban, o.iban) AS owner_iban "
             "FROM invoices i LEFT JOIN owners o ON o.kod = i.owner_kod "
+            "LEFT JOIN properties p ON p.id = o.property_id "
             "WHERE i.numero = ?", (numero,)).fetchone()
     finally:
         conn.close()
@@ -346,51 +450,72 @@ def peek_next_seq(owner_kod: str, anio: int) -> int:
         conn.close()
 
 
-def create_invoice_atomic(
-    owner_kod, anio, fecha_expedicion, fecha_vencimiento, mes_najmu,
-    concepto, base_imponible, tipo_iva, cuota_iva, total,
-) -> str:
-    """Atomicky přidělí pořadové číslo a vloží fakturu. Vrací přidělené `numero`.
+def _alloc_seq(conn, owner_kod, anio) -> int:
+    """Přidělí další pořadové číslo majiteli/roku (v rámci otevřené transakce)."""
+    if USE_PG:
+        row = _ex(conn,
+            "INSERT INTO counters (owner_kod, anio, last_seq) VALUES (?, ?, 1) "
+            "ON CONFLICT (owner_kod, anio) DO UPDATE SET last_seq = counters.last_seq + 1 "
+            "RETURNING last_seq", (owner_kod, anio)).fetchone()
+        return row["last_seq"]
+    row = conn.execute("SELECT last_seq FROM counters WHERE owner_kod = ? AND anio = ?",
+                       (owner_kod, anio)).fetchone()
+    seq = (row["last_seq"] if row else 0) + 1
+    if row:
+        conn.execute("UPDATE counters SET last_seq = ? WHERE owner_kod = ? AND anio = ?",
+                     (seq, owner_kod, anio))
+    else:
+        conn.execute("INSERT INTO counters (owner_kod, anio, last_seq) VALUES (?, ?, ?)",
+                     (owner_kod, anio, seq))
+    return seq
 
-    Souběžné generování je serializováno (PG: ON CONFLICT … RETURNING zamkne řádek
-    counteru; SQLite: BEGIN IMMEDIATE) → žádné díry ani kolize čísel.
+
+def create_invoices_atomic(items) -> list:
+    """Atomicky vytvoří jednu či více faktur v JEDNÉ transakci (vše, nebo nic).
+
+    Každá položka je dict s klíči owner_kod, anio, fecha_expedicion, fecha_vencimiento,
+    mes_najmu, concepto, base_imponible, tipo_iva, cuota_iva, total. Vrací seznam `numero`
+    ve stejném pořadí. U spolumajitelství (1 nemovitost → 2 faktury) tak buď vzniknou obě,
+    nebo žádná. Souběh je serializován (PG: ON CONFLICT … RETURNING; SQLite: BEGIN IMMEDIATE).
     """
     conn = get_conn()
     try:
-        if USE_PG:
-            row = _ex(conn,
-                "INSERT INTO counters (owner_kod, anio, last_seq) VALUES (?, ?, 1) "
-                "ON CONFLICT (owner_kod, anio) DO UPDATE SET last_seq = counters.last_seq + 1 "
-                "RETURNING last_seq", (owner_kod, anio)).fetchone()
-            seq = row["last_seq"]
-        else:
+        if not USE_PG:
             conn.execute("BEGIN IMMEDIATE")
-            row = conn.execute(
-                "SELECT last_seq FROM counters WHERE owner_kod = ? AND anio = ?",
-                (owner_kod, anio)).fetchone()
-            last = row["last_seq"] if row else 0
-            seq = last + 1
-            if row:
-                conn.execute("UPDATE counters SET last_seq = ? WHERE owner_kod = ? AND anio = ?",
-                             (seq, owner_kod, anio))
-            else:
-                conn.execute("INSERT INTO counters (owner_kod, anio, last_seq) VALUES (?, ?, ?)",
-                             (owner_kod, anio, seq))
-        numero = "{}-{}-{:04d}".format(owner_kod, anio, seq)
-        _ex(conn,
-            "INSERT INTO invoices (numero, owner_kod, fecha_expedicion, fecha_vencimiento, "
-            "mes_najmu, concepto, base_imponible, tipo_iva, cuota_iva, total, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (numero, owner_kod, fecha_expedicion, fecha_vencimiento, mes_najmu, concepto,
-             base_imponible, tipo_iva, cuota_iva, total,
-             datetime.now().isoformat(timespec="seconds")))
+        numeros = []
+        for it in items:
+            seq = _alloc_seq(conn, it["owner_kod"], it["anio"])
+            numero = "{}-{}-{:04d}".format(it["owner_kod"], it["anio"], seq)
+            _ex(conn,
+                "INSERT INTO invoices (numero, owner_kod, fecha_expedicion, fecha_vencimiento, "
+                "mes_najmu, concepto, base_imponible, tipo_iva, cuota_iva, total, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (numero, it["owner_kod"], it["fecha_expedicion"], it["fecha_vencimiento"],
+                 it["mes_najmu"], it["concepto"], it["base_imponible"], it["tipo_iva"],
+                 it["cuota_iva"], it["total"],
+                 datetime.now().isoformat(timespec="seconds")))
+            numeros.append(numero)
         conn.commit()
-        return numero
+        return numeros
     except Exception:
         conn.rollback()
         raise
     finally:
         conn.close()
+
+
+def create_invoice_atomic(
+    owner_kod, anio, fecha_expedicion, fecha_vencimiento, mes_najmu,
+    concepto, base_imponible, tipo_iva, cuota_iva, total,
+) -> str:
+    """Atomicky přidělí pořadové číslo a vloží jednu fakturu. Vrací přidělené `numero`."""
+    return create_invoices_atomic([{
+        "owner_kod": owner_kod, "anio": anio,
+        "fecha_expedicion": fecha_expedicion, "fecha_vencimiento": fecha_vencimiento,
+        "mes_najmu": mes_najmu, "concepto": concepto,
+        "base_imponible": base_imponible, "tipo_iva": tipo_iva,
+        "cuota_iva": cuota_iva, "total": total,
+    }])[0]
 
 
 def _seq_from_numero(numero, kod, anio):

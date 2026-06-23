@@ -15,7 +15,13 @@
           <td><strong>{{ o.kod }}</strong></td>
           <td>{{ o.nombre }}<br><small class="muted">{{ o.domicilio }}</small></td>
           <td><small class="muted">{{ o.tipo_id or 'NIF' }}</small> {{ o.nif }}</td>
-          <td>{{ o.nombre_propiedad or "—" }}</td>
+          <td>
+            {% if o.property_nombre %}
+              <span title="Spolumajitelství – sdílený účet">🏠 {{ o.property_nombre }}</span>
+            {% else %}
+              {{ o.nombre_propiedad or "—" }}
+            {% endif %}
+          </td>
           <td>{{ o.variabilni_symbol or "—" }}</td>
           <td class="row-actions">
             <a href="/propietarios?edit={{ o.kod }}" role="button" class="outline small">Upravit</a>
@@ -31,6 +37,58 @@
     {% else %}
     <p class="muted">Zatím žádní majitelé. Přidejte prvního formulářem vpravo.</p>
     {% endif %}
+
+    <article>
+      <h3>{{ "Upravit nemovitost" if edit_property else "Nemovitosti (společné karty)" }}</h3>
+      <p class="muted">
+        Nemovitost se dvěma spolumajiteli: přiřaďte k ní oba majitele a faktura se
+        při vystavení rozdělí na 2 doklady, oba s QR na <strong>jeden společný IBAN</strong>.
+      </p>
+      {% if properties and not edit_property %}
+      <table>
+        <thead><tr><th>Nemovitost</th><th>IBAN</th><th>Spolumajitelé</th><th></th></tr></thead>
+        <tbody>
+          {% for p in properties %}
+          <tr>
+            <td><strong>{{ p.nombre }}</strong></td>
+            <td><small class="muted">{{ p.iban or "—" }}</small></td>
+            <td>{{ p.owner_count }}</td>
+            <td class="row-actions">
+              <a href="/propietarios?edit_prop={{ p.id }}" role="button" class="outline small">Upravit</a>
+              <form method="post" action="/propiedades/{{ p.id }}/eliminar"
+                    onsubmit="return confirm('Smazat nemovitost „{{ p.nombre }}\"? Majitelé zůstanou, jen se odpojí.');">
+                <button type="submit" class="outline small danger">Smazat</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+
+      <form method="post"
+            action="{{ '/propiedades/' + edit_property.id|string + '/actualizar' if edit_property else '/propiedades' }}">
+        <label>Název nemovitosti
+          <input name="nombre" value="{{ edit_property.nombre if edit_property else '' }}" required
+                 placeholder="napr. Byt Madrid – Calle Mayor 1">
+        </label>
+        <div class="grid">
+          <label>Společný IBAN <small class="muted">(účet pro obě faktury)</small>
+            <input name="iban" value="{{ edit_property.iban or '' if edit_property else '' }}"
+                   placeholder="CZ65 0800 0000 1920 0014 5399" style="text-transform:uppercase">
+          </label>
+          <label>Variabilní symbol <small class="muted">(volitelně, do QR)</small>
+            <input name="variabilni_symbol"
+                   value="{{ edit_property.variabilni_symbol or '' if edit_property else '' }}"
+                   inputmode="numeric" placeholder="napr. 20260001">
+          </label>
+        </div>
+        <div class="form-actions">
+          <button type="submit">{{ "Uložit změny" if edit_property else "Přidat nemovitost" }}</button>
+          {% if edit_property %}<a href="/propietarios" role="button" class="secondary outline">Zrušit</a>{% endif %}
+        </div>
+      </form>
+    </article>
   </section>
 
   <section>
@@ -66,6 +124,15 @@
         <label>Domicilio fiscal
           <textarea name="domicilio" rows="2" required>{{ edit_owner.domicilio if edit_owner else '' }}</textarea>
         </label>
+        <label>Nemovitost (spolumajitelství) <small class="muted">(volitelně – sdílený IBAN)</small>
+          {% set cur_prop = edit_owner.property_id if edit_owner else None %}
+          <select name="property_id">
+            <option value="">— samostatný majitel (vlastní IBAN) —</option>
+            {% for p in properties %}
+            <option value="{{ p.id }}" {{ 'selected' if cur_prop == p.id else '' }}>{{ p.nombre }}</option>
+            {% endfor %}
+          </select>
+        </label>
         <div class="grid">
           <label>Nombre de la propiedad <small class="muted">(volitelně, do popisu)</small>
             <input name="nombre_propiedad" value="{{ edit_owner.nombre_propiedad or '' if edit_owner else '' }}">
@@ -75,7 +142,7 @@
                    inputmode="numeric" placeholder="napr. 20260001">
           </label>
         </div>
-        <label>IBAN <small class="muted">(volitelně – vytvoří QR platbu na faktuře)</small>
+        <label>IBAN <small class="muted">(jen pro samostatného majitele; u nemovitosti se použije její společný IBAN)</small>
           <input name="iban" value="{{ edit_owner.iban or '' if edit_owner else '' }}"
                  placeholder="CZ65 0800 0000 1920 0014 5399" style="text-transform:uppercase">
         </label>

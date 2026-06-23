@@ -14,14 +14,26 @@
     <form method="post" action="/facturas" id="inv-form">
       <input type="hidden" name="confirmar" id="confirmar" value="{{ '1' if warn_duplicate else '0' }}">
 
-      <label>Majitel (emisor)
+      <label>Majitel / nemovitost (emisor)
         <select name="owner_kod" id="owner_kod" required>
           <option value="" disabled {{ 'selected' if not owner_selected else '' }}>— vyberte —</option>
-          {% for o in owners %}
-          <option value="{{ o.kod }}" {{ 'selected' if o.kod == owner_selected else '' }}>
-            {{ o.kod }} · {{ o.nombre }}{{ ' · ' + o.nombre_propiedad if o.nombre_propiedad else '' }}
-          </option>
-          {% endfor %}
+          {% set props_with_owners = properties | selectattr('owner_count') | list %}
+          {% if props_with_owners %}
+          <optgroup label="Nemovitosti (spolumajitelství → 2 faktury)">
+            {% for p in props_with_owners %}
+            <option value="prop:{{ p.id }}" {{ 'selected' if owner_selected == 'prop:' ~ p.id|string else '' }}>
+              🏠 {{ p.nombre }} ({{ p.owner_count }} spolumajitelé)
+            </option>
+            {% endfor %}
+          </optgroup>
+          {% endif %}
+          <optgroup label="Jednotliví majitelé">
+            {% for o in owners if not o.property_id %}
+            <option value="{{ o.kod }}" {{ 'selected' if o.kod == owner_selected else '' }}>
+              {{ o.kod }} · {{ o.nombre }}{{ ' · ' + o.nombre_propiedad if o.nombre_propiedad else '' }}
+            </option>
+            {% endfor %}
+          </optgroup>
         </select>
       </label>
 
@@ -33,6 +45,7 @@
         <label>Částka brutto (vč. 21 % IVA) €
           <input type="text" name="total" id="total" inputmode="decimal" required
                  placeholder="napr. 850,00" value="{{ prev_total or '' }}">
+          <small class="muted" id="total-hint" style="display:none">Celková částka za nemovitost – rozdělí se 50/50 mezi spolumajitele.</small>
         </label>
       </div>
 
@@ -85,6 +98,19 @@
         <tr class="pv-total"><td>K úhradě</td><td id="pv-liquido">—</td></tr>
         <tr class="pv-concepto"><td colspan="2"><small class="muted" id="pv-concepto">—</small></td></tr>
       </table>
+
+      <div id="pv-property" style="display:none">
+        <table class="pv-table">
+          <tr><td>Nemovitost</td><td id="pvp-nombre">—</td></tr>
+          <tr><td>Období plnění</td><td id="pvp-periodo">—</td></tr>
+          <tr><td>Datum vystavení</td><td id="pvp-exp">—</td></tr>
+          <tr><td>Datum splatnosti</td><td id="pvp-ven">—</td></tr>
+          <tr class="pv-total"><td>Celkem brutto</td><td id="pvp-total">—</td></tr>
+        </table>
+        <div id="pvp-splits"></div>
+        <small class="muted" id="pvp-concepto"></small>
+      </div>
+
       <small class="muted">Číslo je předběžné; skutečné se přidělí až při vygenerování.</small>
     </article>
   </section>
@@ -103,21 +129,40 @@ function schedulePreview() { clearTimeout(timer); timer = setTimeout(loadPreview
 ["owner_kod", "mes", "total", "concepto"].forEach(id =>
   $(id).addEventListener("input", schedulePreview));
 
-async function loadPreview() {
-  const owner = $("owner_kod").value, mes = $("mes").value, total = $("total").value;
-  if (!owner || !mes || !total) { return; }
-  const data = new URLSearchParams({ owner_kod: owner, mes, total, concepto: $("concepto").value });
-  let res;
-  try { res = await (await fetch("/api/preview", { method: "POST", body: data })).json(); }
-  catch (e) { return; }
+// Nápověda k rozdělení částky se ukáže jen u nemovitosti.
+$("owner_kod").addEventListener("input", () => {
+  $("total-hint").style.display = $("owner_kod").value.startsWith("prop:") ? "" : "none";
+});
 
-  if (!res.ok) {
-    $("pv-status").textContent = res.error;
-    $("pv-status").style.display = "block";
-    $("pv-body").style.display = "none";
-    return;
-  }
-  $("pv-status").style.display = "none";
+function showError(msg) {
+  $("pv-status").textContent = msg;
+  $("pv-status").style.display = "block";
+  $("pv-body").style.display = "none";
+  $("pv-property").style.display = "none";
+}
+
+function renderProperty(res) {
+  $("pv-body").style.display = "none";
+  $("pv-property").style.display = "";
+  $("pv-numero").textContent = res.splits.length + " faktury";
+  $("pvp-nombre").textContent = res.property_nombre;
+  $("pvp-periodo").textContent = res.periodo;
+  $("pvp-exp").textContent = res.fecha_expedicion_es;
+  $("pvp-ven").textContent = res.fecha_vencimiento_es;
+  $("pvp-total").textContent = res.total;
+  let rows = '<table class="pv-table">';
+  res.splits.forEach(s => {
+    rows += '<tr class="pv-sep"><td><strong>' + s.numero + '</strong><br>' +
+            '<small class="muted">' + s.nombre + '</small></td>' +
+            '<td>' + s.total + ' brutto<br><strong>' + s.liquido + '</strong> k úhradě</td></tr>';
+  });
+  rows += '</table>';
+  $("pvp-splits").innerHTML = rows;
+  $("pvp-concepto").textContent = res.concepto;
+}
+
+function renderSingle(res) {
+  $("pv-property").style.display = "none";
   $("pv-body").style.display = "";
   $("pv-numero").textContent = res.numero;
   $("pv-periodo").textContent = res.periodo;
@@ -135,6 +180,20 @@ async function loadPreview() {
   } else {
     $("pv-vs-row").style.display = "none";
   }
+}
+
+async function loadPreview() {
+  const owner = $("owner_kod").value, mes = $("mes").value, total = $("total").value;
+  if (!owner || !mes || !total) { return; }
+  const data = new URLSearchParams({ owner_kod: owner, mes, total, concepto: $("concepto").value });
+  let res;
+  try { res = await (await fetch("/api/preview", { method: "POST", body: data })).json(); }
+  catch (e) { return; }
+
+  if (!res.ok) { showError(res.error); return; }
+  $("pv-status").style.display = "none";
+
+  if (res.is_property) { renderProperty(res); } else { renderSingle(res); }
 
   // Předvyplň datumy (jen pokud je uživatel ručně neměnil).
   if (!datesTouched) {
@@ -156,7 +215,7 @@ async function loadPreview() {
 $("inv-form").addEventListener("submit", (e) => {
   if ($("dup-warn").style.display !== "none" && $("confirmar").value !== "1") {
     const num = $("dup-num").textContent;
-    if (confirm("Pro tohoto majitele a měsíc už existuje faktura " + num +
+    if (confirm("Pro tento měsíc už existuje faktura " + num +
                 ".\nOpravdu vystavit další?")) {
       $("confirmar").value = "1";
     } else {
@@ -165,6 +224,9 @@ $("inv-form").addEventListener("submit", (e) => {
   }
 });
 
-window.addEventListener("DOMContentLoaded", loadPreview);
+window.addEventListener("DOMContentLoaded", () => {
+  $("total-hint").style.display = $("owner_kod").value.startsWith("prop:") ? "" : "none";
+  loadPreview();
+});
 </script>
 {% endblock %}
